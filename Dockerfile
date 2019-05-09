@@ -14,7 +14,7 @@ LABEL git.build.time=${GIT_BUILD_TIME}
 LABEL travis.build.number=${TRAVIS_BUILD_NUMBER}
 LABEL travis.build.web.url=${TRAVIS_BUILD_WEB_URL}
 
-RUN apk add --no-cache linux-headers musl-dev gcc
+RUN apk add --no-cache linux-headers=4.18.13-r1 musl-dev=1.1.20-r4 gcc=8.3.0-r0
 
 COPY code/ /opt/nuvlabox/
 
