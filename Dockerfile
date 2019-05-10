@@ -1,3 +1,14 @@
+FROM python:3-alpine AS psutil-builder
+
+RUN apk add --no-cache linux-headers=4.18.13-r1 musl-dev=1.1.20-r4 gcc=8.3.0-r0
+
+WORKDIR /usr/local/lib/python3.7/site-packages
+
+COPY code/requirements.txt .
+RUN pip install -r requirements.txt
+
+# ---
+
 FROM python:3-alpine
 
 ARG GIT_BRANCH
@@ -14,7 +25,10 @@ LABEL git.build.time=${GIT_BUILD_TIME}
 LABEL travis.build.number=${TRAVIS_BUILD_NUMBER}
 LABEL travis.build.web.url=${TRAVIS_BUILD_WEB_URL}
 
-RUN apk add --no-cache linux-headers=4.18.13-r1 musl-dev=1.1.20-r4 gcc=8.3.0-r0
+COPY --from=psutil-builder /usr/local/lib/python3.7/site-packages/psutil /usr/local/lib/python3.7/site-packages/psutil
+COPY --from=psutil-builder /usr/local/lib/python3.7/site-packages/psutil-5.6.2.dist-info /usr/local/lib/python3.7/site-packages/psutil-5.6.2.dist-info
+
+RUN ls /usr/local/lib/python3.7/site-packages/
 
 COPY code/ /opt/nuvlabox/
 
