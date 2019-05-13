@@ -1,10 +1,15 @@
 version: "3.7"
 
 services:
-  agent:
+  system-manager:
     build: .
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+    labels:
+      - nuvlabox.component=True
+    restart: on-failure
+
+
 
 
 
