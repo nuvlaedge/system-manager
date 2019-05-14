@@ -1,0 +1,17 @@
+version: "3.7"
+
+services:
+  system-manager:
+    build: .
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    labels:
+      - nuvlabox.component=True
+    restart: on-failure
+    ports:
+      - 127.0.0.1:3636:3636
+
+
+
+
+
