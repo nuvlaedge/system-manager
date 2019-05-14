@@ -5,6 +5,7 @@
  the different system manager classes """
 
 import docker
+import requests
 
 
 def cleanup(containers=None, exclude=None):
@@ -22,4 +23,11 @@ def cleanup(containers=None, exclude=None):
             if exclude and exclude == cont.id:
                 pass
 
-            docker.from_env().api.stop(cont.id, timeout=1)
+            docker.from_env().api.stop(cont.id, timeout=5)
+
+
+def change_operational_state(state):
+    """ Requests the agent to change the operational state """
+
+    url = "http://agent:5000?value={}".format(state)
+    requests.get(url)

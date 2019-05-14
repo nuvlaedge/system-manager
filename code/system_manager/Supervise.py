@@ -4,6 +4,7 @@
 """ Contains the supervising class for all NuvlaBox Engine components """
 
 import docker
+import time
 
 
 class Supervise(object):
@@ -19,6 +20,7 @@ class Supervise(object):
         self.docker_client = docker.from_env()
         self.base_label = "nuvlabox.component=True"
         self.state = "ACTIVE"
+        self.printer_file = "index.html"
 
         with open("/proc/self/cgroup", 'r') as f:
             self.docker_id = f.readlines()[0].replace('\n', '').split("/")[-1]
@@ -28,9 +30,12 @@ class Supervise(object):
 
         return self.docker_client.containers.list(filters={"label": self.base_label})
 
-    @staticmethod
-    def printer(text):
-        print(text, "         \r")
+    def printer(self, text):
+        """ Pretty prints """
+
+        with open(self.printer_file, 'w') as p:
+            p.write("{} \n\n{}".format(text, time.ctime()))
+
 
 
 

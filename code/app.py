@@ -13,6 +13,10 @@ Arguments:
 
 import logging
 import sys
+import time
+import http.server
+import socketserver
+import threading
 from system_manager.common import utils
 from system_manager.Requirements import SystemRequirements, SoftwareRequirements
 from system_manager.Supervise import Supervise
@@ -40,6 +44,16 @@ def set_logger(log_level, log_file):
     return root_logger
 
 
+def start_web_server():
+    """ Starts a simple web server to expose plain text """
+
+    port = 3636
+    handler = http.server.SimpleHTTPRequestHandler
+
+    with socketserver.TCPServer(("", port), handler) as httpd:
+        httpd.serve_forever()
+
+
 if __name__ == "__main__":
     """ Main """
 
@@ -54,8 +68,18 @@ if __name__ == "__main__":
         utils.cleanup(supervisor.list_internal_containers(), supervisor.docker_id)
         sys.exit(1)
     else:
+        with open("{}/.state".format(data_volume), 'w') as s:
+            s.write("ONLINE")
+
+        # setup printer webserver
+        logging.info("Starting web server...")
+        web_server = threading.Thread(target=start_web_server)
+        web_server.daemon = True
+        web_server.start()
+
         while True:
-            pass
+            supervisor.printer("to be implemented")
+            time.sleep(5)
 
 
 

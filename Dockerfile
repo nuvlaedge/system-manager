@@ -28,8 +28,6 @@ LABEL travis.build.web.url=${TRAVIS_BUILD_WEB_URL}
 COPY --from=psutil-builder /usr/local/lib/python3.7/site-packages/psutil /usr/local/lib/python3.7/site-packages/psutil
 COPY --from=psutil-builder /usr/local/lib/python3.7/site-packages/psutil-5.6.2.dist-info /usr/local/lib/python3.7/site-packages/psutil-5.6.2.dist-info
 
-RUN ls /usr/local/lib/python3.7/site-packages/
-
 COPY code/ /opt/nuvlabox/
 
 WORKDIR /opt/nuvlabox/
