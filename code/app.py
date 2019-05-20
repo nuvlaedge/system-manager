@@ -68,8 +68,8 @@ if __name__ == "__main__":
         utils.cleanup(supervisor.list_internal_containers(), supervisor.docker_id)
         sys.exit(1)
     else:
-        with open("{}/.state".format(data_volume), 'w') as s:
-            s.write("ONLINE")
+        with open("{}/.status".format(data_volume), 'w') as s:
+            s.write("OPERATIONAL")
 
         # setup printer webserver
         logging.info("Starting web server...")

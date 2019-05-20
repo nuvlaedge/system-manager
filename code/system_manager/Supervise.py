@@ -19,7 +19,7 @@ class Supervise(object):
 
         self.docker_client = docker.from_env()
         self.base_label = "nuvlabox.component=True"
-        self.state = "ACTIVE"
+        # self.state = "ACTIVE"
         self.printer_file = "index.html"
 
         with open("/proc/self/cgroup", 'r') as f:

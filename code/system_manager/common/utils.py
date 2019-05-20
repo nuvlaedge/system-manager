@@ -26,8 +26,8 @@ def cleanup(containers=None, exclude=None):
             docker.from_env().api.stop(cont.id, timeout=5)
 
 
-def change_operational_state(state):
-    """ Requests the agent to change the operational state """
+def change_operational_status(status):
+    """ Requests the agent to change the operational status """
 
-    url = "http://agent:5000?value={}".format(state)
+    url = "http://agent:5000/api/status?value={}".format(status)
     requests.get(url)
