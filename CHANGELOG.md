@@ -1,4 +1,8 @@
 # Changelog
+## [0.1.2] - 2019-05-21
+### Added 
+- added curl to Docker image
+### Changed
 ## [0.1.1] - 2019-05-20
 ### Added
 ### Changed
