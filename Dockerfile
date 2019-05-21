@@ -32,7 +32,7 @@ COPY code/ /opt/nuvlabox/
 
 WORKDIR /opt/nuvlabox/
 
-RUN pip install -r requirements.txt
+RUN apk add --no-cache curl && pip install -r requirements.txt
 
 VOLUME /srv/nuvlabox/shared
 
