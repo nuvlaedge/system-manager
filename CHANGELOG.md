@@ -1,4 +1,7 @@
 # Changelog
+## Unreleased
+### Added
+- support for multi-architecture images
 ## [0.1.2] - 2019-05-21
 ### Added 
 - added curl to Docker image
