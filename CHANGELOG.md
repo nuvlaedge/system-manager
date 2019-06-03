@@ -1,7 +1,4 @@
 # Changelog
-## [NONE] - 2019-06-03
-### Added
-### Changed
 
 ## [0.2.0] - 2019-06-03
 ### Added
