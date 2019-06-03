@@ -24,7 +24,7 @@ class SystemRequirements(object):
 
         self.minimum_requirements = {
             "cpu": 1,
-            "ram": 1024,
+            "ram": 768,
             "disk": 1
         }
 
