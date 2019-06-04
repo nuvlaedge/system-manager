@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.1] - 2019-06-04
+## Changed
+  - Reduced minimum RAM requirement to 768 MB to make
+    it accept a RPi 3 as platform
+
 ## [0.2.0] - 2019-06-03
 ### Added
   - support for multi-architecture images
