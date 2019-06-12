@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.2.2] - 2019-06-12
+### Added
+  - build for arm platform
+
 ## [0.2.1] - 2019-06-04
 ## Changed
   - Reduced minimum RAM requirement to 768 MB to make
