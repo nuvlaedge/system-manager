@@ -13,6 +13,7 @@ Arguments:
 
 import logging
 import sys
+import os
 import time
 import http.server
 import socketserver
@@ -70,6 +71,14 @@ if __name__ == "__main__":
     else:
         with open("{}/.status".format(data_volume), 'w') as s:
             s.write("OPERATIONAL")
+
+        peripherals = '{}/.peripherals'.format(data_volume)
+
+        try:
+            # Create Directory
+            os.mkdir(peripherals)
+        except FileExistsError:
+            logging.info("Directory ", peripherals, " already exists")
 
         # setup printer webserver
         logging.info("Starting web server...")
