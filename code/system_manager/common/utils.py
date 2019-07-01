@@ -6,6 +6,7 @@
 
 import docker
 import requests
+import logging
 
 
 def cleanup(containers=None, exclude=None):
@@ -23,6 +24,7 @@ def cleanup(containers=None, exclude=None):
             if exclude and exclude == cont.id:
                 pass
 
+            logging.warning("Stopping container %s" % cont)
             docker.from_env().api.stop(cont.id, timeout=5)
 
 
