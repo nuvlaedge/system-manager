@@ -71,12 +71,14 @@ if __name__ == "__main__":
     else:
         with open("{}/.status".format(data_volume), 'w') as s:
             s.write("OPERATIONAL")
+        logging.info("Successfully created status file")
 
         peripherals = '{}/.peripherals'.format(data_volume)
 
         try:
             # Create Directory
             os.mkdir(peripherals)
+            logging.info("Successfully created peripherals directory")
         except FileExistsError:
             logging.info("Directory ", peripherals, " already exists")
 
