@@ -1,4 +1,9 @@
 # Changelog
+## [0.2.3] - 2019-07-03
+### Added 
+- creation of local peripherals folder 
+- extra logging
+### Changed
 
 ## [0.2.2] - 2019-06-12
 ### Added

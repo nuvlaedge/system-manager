@@ -7,6 +7,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     labels:
       - nuvlabox.component=True
+      - nuvlabox.deployment=production
     restart: on-failure
     ports:
       - 127.0.0.1:3636:3636
