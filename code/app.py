@@ -80,7 +80,7 @@ if __name__ == "__main__":
             os.mkdir(peripherals)
             logging.info("Successfully created peripherals directory")
         except FileExistsError:
-            logging.info("Directory ", peripherals, " already exists")
+            logging.info("Directory " + peripherals + " already exists")
 
         # setup printer webserver
         logging.info("Starting web server...")
@@ -89,8 +89,8 @@ if __name__ == "__main__":
         web_server.start()
 
         while True:
-            supervisor.printer("to be implemented")
-            time.sleep(5)
+            supervisor.build_content()
+            time.sleep(3)
 
 
 
