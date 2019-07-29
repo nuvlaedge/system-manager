@@ -138,8 +138,14 @@ class Supervise(object):
                         mem_percent = round(float(mem_usage / mem_limit) * 100, 2)
                     net_in = sum(container_stats["networks"][iface]["rx_bytes"] for iface in container_stats["networks"]) / 1000 / 1000
                     net_out = sum(container_stats["networks"][iface]["tx_bytes"] for iface in container_stats["networks"]) / 1000 / 1000
-                    blk_in = float(container_stats["blkio_stats"]["io_service_bytes_recursive"][0]["value"] / 1000 / 1000)
-                    blk_out = float(container_stats["blkio_stats"]["io_service_bytes_recursive"][1]["value"] / 1000 / 1000)
+                    try:
+                        blk_in = float(container_stats.get("blkio_stats", {}).get("io_service_bytes_recursive", [{"value": 0}])[0]["value"] / 1000 / 1000)
+                    except IndexError:
+                        blk_in = 0.0
+                    try:
+                        blk_out = float(container_stats.get("blkio_stats", {}).get("io_service_bytes_recursive", [0, {"value": 0}])[1]["value"] / 1000 / 1000)
+                    except IndexError:
+                        blk_out = 0.0
                     container_status = container.status
                     restart_count = int(container.attrs["RestartCount"])
                     break
