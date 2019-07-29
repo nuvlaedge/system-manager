@@ -1,4 +1,8 @@
 # Changelog
+## [0.3.1] - 2019-07-29
+### Added
+### Changed
+- fixed index error exception in docker stats
 ## [0.3.0] - 2019-07-29
 ### Added 
 - docker stats and general NB info to local dashboard
