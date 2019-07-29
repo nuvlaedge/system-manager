@@ -1,4 +1,8 @@
 # Changelog
+## [0.3.0] - 2019-07-29
+### Added 
+- docker stats and general NB info to local dashboard
+### Changed
 ## [0.2.3] - 2019-07-03
 ### Added 
 - creation of local peripherals folder 
