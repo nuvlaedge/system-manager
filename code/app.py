@@ -90,7 +90,7 @@ if __name__ == "__main__":
 
         while True:
             supervisor.build_content()
-            time.sleep(3)
+            time.sleep(2)
 
 
 
