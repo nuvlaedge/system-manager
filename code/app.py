@@ -14,10 +14,9 @@ Arguments:
 import logging
 import sys
 import os
-import time
-import http.server
-import socketserver
+from flask import Flask, render_template, request
 import threading
+from multiprocessing import Process
 from system_manager.common import utils
 from system_manager.Requirements import SystemRequirements, SoftwareRequirements
 from system_manager.Supervise import Supervise
@@ -25,6 +24,9 @@ from system_manager.Supervise import Supervise
 
 __copyright__ = "Copyright (C) 2019 SixSq"
 __email__ = "support@sixsq.com"
+
+app = Flask(__name__)
+debug_app = Flask(__name__)
 
 data_volume = "/srv/nuvlabox/shared"
 log_filename = "system-manager.log"
@@ -45,14 +47,41 @@ def set_logger(log_level, log_file):
     return root_logger
 
 
-def start_web_server():
-    """ Starts a simple web server to expose plain text """
+@app.route('/')
+@debug_app.route('/')
+def dashboard():
+    """ Dashboard """
 
-    port = 3636
-    handler = http.server.SimpleHTTPRequestHandler
+    index_file = app.config["index_file"]
+    return render_template(index_file)
 
-    with socketserver.TCPServer(("", port), handler) as httpd:
-        httpd.serve_forever()
+
+@app.route('/debug')
+def debug():
+    """ API endpoint to let other components set the NuvlaBox status """
+
+    enabled = str(request.args.get('enabled'))
+    debug_server = app.config.get("debug_server", None)
+
+    if enabled.lower() == "true":
+        if debug_server and debug_server.is_alive():
+            logging.exception("Debug mode is already enabled")
+        else:
+            debug_server = Process(target=debug_app.run, kwargs=dict(host="0.0.0.0", port=3637))
+            debug_server.daemon = True
+            app.config["debug_server"] = debug_server
+            debug_server.start()
+
+        return '<a href="http://localhost:3637">Enter debug mode</a>'
+    else:
+        if debug_server and debug_server.is_alive():
+            debug_server.terminate()
+            debug_server.join()
+            debug_server.close()
+            app.config["debug_server"] = None
+            return 'Exited debug mode'
+        else:
+            return 'Call "/debug?enabled=true" to start debug mode'
 
 
 if __name__ == "__main__":
@@ -63,6 +92,11 @@ if __name__ == "__main__":
     system_requirements = SystemRequirements()
     software_requirements = SoftwareRequirements()
     supervisor = Supervise()
+
+    app.config["index_file"] = supervisor.printer_file
+    app.config["templates"] = supervisor.html_templates
+    app.config["TEMPLATES_AUTO_RELOAD"] = True
+    debug_app.config["TEMPLATES_AUTO_RELOAD"] = True
 
     if not software_requirements.check_docker_requirements() or not system_requirements.check_all_hw_requirements():
         logging.error("System does not meet the minimum requirements! Stopping")
@@ -83,14 +117,14 @@ if __name__ == "__main__":
             logging.info("Directory " + peripherals + " already exists")
 
         # setup printer webserver
-        logging.info("Starting web server...")
-        web_server = threading.Thread(target=start_web_server)
+        logging.info("Starting local dashboard...")
+
+        web_server = threading.Thread(target=app.run, kwargs=dict(host="0.0.0.0", port=3636))
         web_server.daemon = True
         web_server.start()
 
         while True:
             supervisor.build_content()
-            time.sleep(1)
 
 
 

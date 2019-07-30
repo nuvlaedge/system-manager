@@ -11,8 +11,6 @@ services:
     restart: on-failure
     ports:
       - 127.0.0.1:3636:3636
-
-
-
+      - 3637:3637
 
 

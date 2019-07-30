@@ -35,5 +35,6 @@ WORKDIR /opt/nuvlabox/
 RUN apk add --no-cache curl && pip install -r requirements.txt
 
 VOLUME /srv/nuvlabox/shared
+VOLUME /opt/nuvlabox/templates
 
 ENTRYPOINT ["./app.py"]

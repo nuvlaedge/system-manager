@@ -21,6 +21,7 @@ class Supervise(object):
         self.docker_client = docker.from_env()
         self.base_label = "nuvlabox.component=True"
         # self.state = "ACTIVE"
+        self.html_templates = "templates"
         self.printer_file = "index.html"
 
         with open("/proc/self/cgroup", 'r') as f:
@@ -34,7 +35,7 @@ class Supervise(object):
     def printer(self, content):
         """ Pretty prints """
 
-        with open(self.printer_file, 'w') as p:
+        with open("{}/{}".format(self.html_templates, self.printer_file), 'w') as p:
             p.write("{}".format(content))
 
     def build_content(self):
@@ -43,6 +44,9 @@ class Supervise(object):
         info = self._get_docker_info()
         content = '<!DOCTYPE html>' \
                   '<html>' \
+                  '<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />' \
+                  '<meta http-equiv="Pragma" content="no-cache" />' \
+                  '<meta http-equiv="Expires" content="0" />' \
                   '<head>' \
                   '<style>' \
                   ' body {{background-color: #001f3f;' \
@@ -136,8 +140,11 @@ class Supervise(object):
                         mem_percent = 0.00
                     else:
                         mem_percent = round(float(mem_usage / mem_limit) * 100, 2)
-                    net_in = sum(container_stats["networks"][iface]["rx_bytes"] for iface in container_stats["networks"]) / 1000 / 1000
-                    net_out = sum(container_stats["networks"][iface]["tx_bytes"] for iface in container_stats["networks"]) / 1000 / 1000
+
+                    if "networks" in container_stats:
+                        net_in = sum(container_stats["networks"][iface]["rx_bytes"] for iface in container_stats["networks"]) / 1000 / 1000
+                        net_out = sum(container_stats["networks"][iface]["tx_bytes"] for iface in container_stats["networks"]) / 1000 / 1000
+
                     try:
                         blk_in = float(container_stats.get("blkio_stats", {}).get("io_service_bytes_recursive", [{"value": 0}])[0]["value"] / 1000 / 1000)
                     except IndexError:
