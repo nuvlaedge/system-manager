@@ -1,6 +1,6 @@
 FROM python:3-alpine AS psutil-builder
 
-RUN apk add --no-cache linux-headers=4.19.36-r0 musl-dev=1.1.22-r2 gcc=8.3.0-r0
+RUN apk add --no-cache linux-headers=4.19.36-r0 musl-dev=1.1.22-r3 gcc=8.3.0-r0
 
 WORKDIR /usr/local/lib/python3.7/site-packages
 
