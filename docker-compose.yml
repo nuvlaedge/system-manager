@@ -9,6 +9,12 @@ services:
       - nuvlabox.component=True
       - nuvlabox.deployment=production
     restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3636"]
+      interval: 30s
+      timeout: 10s
+      retries: 4
+      start_period: 10s
     ports:
       - 127.0.0.1:3636:3636
       - 3637:3637
