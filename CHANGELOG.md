@@ -1,4 +1,8 @@
 # Changelog
+## [0.4.1] - 2019-11-19
+### Added
+### Changed
+- upgrade to Python 3.8
 ## [0.4.0] - 2019-07-30
 ### Added 
 - debug port mapping to expose local dashboard outside localhost 
