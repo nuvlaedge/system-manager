@@ -8,6 +8,11 @@ import docker
 import requests
 import logging
 
+data_volume = "/srv/nuvlabox/shared"
+log_filename = "system-manager.log"
+
+cert_file = "nuvlabox_api.crt"
+key_file = "nuvlabox_api.key"
 
 def cleanup(containers=None, exclude=None):
     """

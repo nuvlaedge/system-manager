@@ -22,6 +22,7 @@ class SystemRequirements(object):
     def __init__(self):
         """ Constructs an SystemRequirements object """
 
+        self.log = logging.getLogger("app")
         self.minimum_requirements = {
             "cpu": 1,
             "ram": 768,
@@ -48,7 +49,7 @@ class SystemRequirements(object):
         total_ram = round(psutil.virtual_memory()[0]/1024/1024)
 
         if total_ram < self.minimum_requirements["ram"]:
-            logging.error("Your device only provides {} MBs of memory. MIN REQUIREMENTS: {} MBs"
+            self.log.error("Your device only provides {} MBs of memory. MIN REQUIREMENTS: {} MBs"
                           .format(total_ram, self.minimum_requirements["ram"]))
             return False
         else:
@@ -61,7 +62,7 @@ class SystemRequirements(object):
         total_disk = round(shutil.disk_usage("/")[0]/1024/1024/1024)
 
         if total_disk < self.minimum_requirements["disk"]:
-            logging.error("Your device only provides {} GBs of disk. MIN REQUIREMENTS: {} GBs"
+            self.log.error("Your device only provides {} GBs of disk. MIN REQUIREMENTS: {} GBs"
                           .format(total_disk, self.minimum_requirements["disk"]))
             return False
         else:
@@ -85,6 +86,8 @@ class SoftwareRequirements(object):
     def __init__(self):
         """ Constructs the class """
 
+        self.log = logging.getLogger("app")
+
         self.minimum_requirements = {
             "docker_version": 18
         }
@@ -96,12 +99,12 @@ class SoftwareRequirements(object):
         docker_major_version = int(self.docker_client.version()["Components"][0]["Version"].split(".")[0])
 
         if docker_major_version < self.minimum_requirements["docker_version"]:
-            logging.error("Your Docker version is too old: {}. MIN REQUIREMENTS: Docker {} or newer"
+            self.log.error("Your Docker version is too old: {}. MIN REQUIREMENTS: Docker {} or newer"
                          .format(docker_major_version, self.minimum_requirements["docker_version"]))
             return False
         else:
             if not self.check_active_swarm():
-                logging.error("The minimum requirements for your Docker setup are not met!")
+                self.log.error("The minimum requirements for your Docker setup are not met!")
                 return False
             else:
                 return True
@@ -110,11 +113,11 @@ class SoftwareRequirements(object):
         """ Checks that the device is running on Swarm mode """
 
         if not self.docker_client.swarm.attrs:
-            logging.error("Your device is not running in Swarm mode! "
+            self.log.error("Your device is not running in Swarm mode! "
                             "To install the NuvlaBox Engine, please first run 'docker swarm init'")
             return False
         elif not self.check_is_swarm_manager():
-            logging.error("Your device is not a Swarm manager! "
+            self.log.error("Your device is not a Swarm manager! "
                           "The NuvlaBox Engine can only run in Swarm Manager nodes")
             return False
         else:
