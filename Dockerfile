@@ -5,7 +5,7 @@ RUN apk add --no-cache linux-headers=4.19.36-r0 musl-dev=1.1.24-r0 gcc=9.2.0-r3
 WORKDIR /usr/local/lib/python3.7/site-packages
 
 COPY code/requirements.base.txt .
-RUN pip install -r requirements.base.tdxt
+RUN pip install -r requirements.base.txt
 
 # ---
 
@@ -31,7 +31,9 @@ COPY code/ /opt/nuvlabox/
 
 WORKDIR /opt/nuvlabox/
 
-RUN apk add --no-cache curl && pip install -r requirements.txt
+RUN apk add --no-cache curl openssl=1.1.1d-r3
+
+RUN pip install -r requirements.txt
 
 VOLUME /srv/nuvlabox/shared
 VOLUME /opt/nuvlabox/templates

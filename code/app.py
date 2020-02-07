@@ -14,6 +14,7 @@ Arguments:
 import logging
 import sys
 import os
+import subprocess
 import threading
 from flask import Flask, render_template, request
 from multiprocessing import Process
@@ -28,32 +29,63 @@ __email__ = "support@sixsq.com"
 app = Flask(__name__)
 debug_app = Flask(__name__)
 
+
 def set_logger():
     """ Configures logging """
-
+    # give logger a name: app
     root = logging.getLogger("app")
     root.setLevel(logging.DEBUG)
-
+    # log into file
     fh = logging.FileHandler("{}/{}".format(utils.data_volume, utils.log_filename))
     fh.setLevel(logging.ERROR)
-
+    # print to console
     c_handler = logging.StreamHandler(sys.stdout)
     c_handler.setLevel(logging.DEBUG)
-
+    # format log messages
     formatter = logging.Formatter('%(levelname)s - %(funcName)s - %(message)s')
-
     c_handler.setFormatter(formatter)
     fh.setFormatter(formatter)
-
+    # add handlers
     root.addHandler(c_handler)
     root.addHandler(fh)
 
 
-def generate_certificate():
+def generate_certificates():
     """ Generates self signed certificate """
 
+    log = logging.getLogger("app")
 
+    if os.path.exists(utils.nuvlabox_api_certs_folder):
+        # it already exists, then just check of the certificates
+        if os.path.exists("{}/{}".format(utils.nuvlabox_api_certs_folder, utils.server_cert_file)) and \
+                os.path.exists("{}/{}".format(utils.nuvlabox_api_certs_folder, utils.server_key_file)) and \
+                os.path.exists("{}/{}".format(utils.nuvlabox_api_certs_folder, utils.client_cert_file)) and \
+                os.path.exists("{}/{}".format(utils.nuvlabox_api_certs_folder, utils.client_key_file)) and \
+                os.path.exists("{}/{}".format(utils.nuvlabox_api_certs_folder, utils.ca_file)):
+            # if all certificated already exist, then we are good...this was just a soft restart
+            log.info("NuvlaBox API certificates already exist.")
+            return
+        else:
+            # somehow not all certs are there...let's rebuild them all from scratch
 
+            log.warning("Re-generating all NuvlaBox API certificates...")
+    else:
+        os.mkdir(utils.nuvlabox_api_certs_folder)
+        log.info("Generating NuvlaBox API certificates for the first time")
+
+    try:
+        subprocess.check_output(["./generate-nuvlabox-api-certs.sh",
+                                 "--certs-folder", utils.nuvlabox_api_certs_folder,
+                                 "--server-key", utils.server_key_file,
+                                 "--server-cert", utils.server_cert_file,
+                                 "--client-key", utils.client_key_file,
+                                 "--client-cert", utils.client_cert_file])
+    except FileNotFoundError:
+        logging.exception("Command to generate NuvlaBox API certs not found!")
+        raise
+    except (OSError, subprocess.CalledProcessError):
+        logging.exception("Failed to generate NuvlaBox API certs!")
+        raise
 
 
 @app.route('/')
@@ -103,6 +135,9 @@ if __name__ == "__main__":
     system_requirements = SystemRequirements()
     software_requirements = SoftwareRequirements()
 
+    # Generate NB API certificates
+    generate_certificates()
+
     supervisor = Supervise()
 
     # app.config["index_file"] = supervisor.printer_file
@@ -131,9 +166,12 @@ if __name__ == "__main__":
         # setup printer webserver
         log.info("Starting local dashboard...")
 
-        web_server = threading.Thread(target=app.run, kwargs=dict(host="0.0.0.0", port=3636))
-        web_server.daemon = True
-        web_server.start()
+        # web_server = threading.Thread(target=app.run, kwargs=dict(host="0.0.0.0", port=3636))
+        # web_server.daemon = True
+        # web_server.start()
+        os.system("gunicorn --bind=0.0.0.0:3636 --keyfile {} --certfile {} --ca-certs {} --cert-reqs 2 --workers=3 wsgi:app".format(utils.nuvlabox_api_certs_folder+"/"+utils.server_key_file,
+                                                                                                                                    utils.nuvlabox_api_certs_folder+"/"+utils.server_cert_file,
+                                                                                                                                    utils.nuvlabox_api_certs_folder+"/"+utils.ca_file))
 
         while True:
             supervisor.build_content()

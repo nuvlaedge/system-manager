@@ -11,8 +11,14 @@ import logging
 data_volume = "/srv/nuvlabox/shared"
 log_filename = "system-manager.log"
 
-cert_file = "nuvlabox_api.crt"
-key_file = "nuvlabox_api.key"
+server_cert_file = "nuvlabox-api-server-cert.pem"
+server_key_file = "nuvlabox-api-server-key.pem"
+client_cert_file = "nuvlabox-api-client-cert.pem"
+client_key_file = "nuvlabox-api-client-key.pem"
+ca_file = "ca.pem"
+
+nuvlabox_api_certs_folder = "{}/nuvlabox-api".format(data_volume)
+
 
 def cleanup(containers=None, exclude=None):
     """
