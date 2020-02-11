@@ -6,6 +6,8 @@
 import docker
 import time
 import logging
+import json
+from system_manager.common import utils
 
 
 class Supervise(object):
@@ -23,6 +25,8 @@ class Supervise(object):
         # self.state = "ACTIVE"
         self.html_templates = "templates"
         self.printer_file = "index.html"
+        self.log = logging.getLogger("app")
+        self.system_usages = {}
 
         with open("/proc/self/cgroup", 'r') as f:
             self.docker_id = f.readlines()[0].replace('\n', '').split("/")[-1]
@@ -41,7 +45,7 @@ class Supervise(object):
     def build_content(self):
         """ Builds the HTML content for the web server """
 
-        info = self._get_docker_info()
+        info = self.get_docker_info()
         content = '<!DOCTYPE html>' \
                   '<html>' \
                   '<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />' \
@@ -81,7 +85,7 @@ class Supervise(object):
                     info['ContainersRunning'],
                     len(self.list_internal_containers()),
                     info['Images'],
-                    "%.2f GB" % self._get_docker_disk_usage(),
+                    "%.2f GB" % self.get_docker_disk_usage(),
                     info['OperatingSystem'],
                     info['Architecture'],
                     "%s CPUs and %s GiB of memory" % (info['NCPU'], round((info['MemTotal']/1024/1024/1024), 2)),
@@ -90,12 +94,30 @@ class Supervise(object):
 
         self.printer(content)
 
-    def _get_docker_disk_usage(self):
+    def get_system_usage(self):
+        """ Re-uses the consumption metrics from NuvlaBox Agent """
+
+        try:
+            with open(utils.nuvlabox_status_file) as nbsf:
+                usages = json.loads(nbsf.read())
+        except FileNotFoundError:
+            self.log.warning("NuvlaBox status metrics file not found locally...wait for Agent to create it")
+            usages = {}
+        except:
+            self.log.exception("Unknown issues while retrieving NuvlaBox status metrics")
+            usages = self.system_usages
+
+        # update in-mem copy of usages
+        self.system_usages = usages
+
+        return usages
+
+    def get_docker_disk_usage(self):
         """ Runs docker system df and gets disk usage """
 
         return round(float(self.docker_client.df()["LayersSize"] / 1000 / 1000 / 1000), 2)
 
-    def _get_docker_info(self):
+    def get_docker_info(self):
         """ Gets everything from the Docker client info """
 
         return self.docker_client.info()

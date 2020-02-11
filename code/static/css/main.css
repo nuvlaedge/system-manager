@@ -1,7 +1,16 @@
 .nav-pills .pill-active .nav-link {
-  background-color: rgba(149, 0, 0, 0.7);
+  background-color: rgba(149, 0, 0, 0.1);
 }
 
 .nav-pills .nav-link {
    color: grey;
 }
+
+body {
+  padding-top: 70px;
+}
+
+.gauges {
+  font-size: 13px;
+}
+

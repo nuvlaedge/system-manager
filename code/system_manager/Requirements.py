@@ -5,7 +5,6 @@
 
 import multiprocessing
 import logging
-import psutil
 import shutil
 import docker
 
@@ -28,6 +27,7 @@ class SystemRequirements(object):
             "ram": 768,
             "disk": 1
         }
+        self.docker_client = docker.from_env()
 
     def check_cpu_requirements(self):
         """ Check the device for the CPU requirements according to the
@@ -46,7 +46,7 @@ class SystemRequirements(object):
         """ Check the device for the RAM requirements according to the
          recommended ones """
 
-        total_ram = round(psutil.virtual_memory()[0]/1024/1024)
+        total_ram = round((self.docker_client.info()['MemTotal']/1024/1024), 2)
 
         if total_ram < self.minimum_requirements["ram"]:
             self.log.error("Your device only provides {} MBs of memory. MIN REQUIREMENTS: {} MBs"

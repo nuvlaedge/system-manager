@@ -15,9 +15,63 @@
     <link rel="stylesheet" type="text/css" href="/static/css/dataTables.bootstrap4.min.css">
     <link rel="stylesheet" type="text/css" href="/static/css/main.css">
     <script src="/static/js/popper.min.js" type="text/javascript"></script>
+    <script src="/static/js/d3.v2.min.js" type="text/javascript"></script>
+    <script src="/static/js/gauges.js" type="text/javascript"></script>
+
+    <script>
+function onDocumentReady() {
+	var powerGaugeCpu = gauge('#power-gauge-cpu', {
+		size: 220,
+		clipWidth: 220,
+		clipHeight: 150,
+		ringWidth: 44,
+		maxValue: 100,
+		transitionMs: 4000,
+	});
+	powerGaugeCpu.render();
+
+	var powerGaugeRam = gauge('#power-gauge-ram', {
+		size: 220,
+		clipWidth: 220,
+		clipHeight: 150,
+		ringWidth: 44,
+		maxValue: 100,
+		transitionMs: 4000,
+	});
+	powerGaugeRam.render();
+
+	var powerGaugeDisk = gauge('#power-gauge-disk', {
+		size: 220,
+		clipWidth: 220,
+		clipHeight: 150,
+		ringWidth: 44,
+		maxValue: 100,
+		transitionMs: 4000,
+	});
+	powerGaugeDisk.render();
+
+	function updateReadings() {
+		// just pump in random data here...
+		powerGaugeCpu.update({{ cpu_usage }});
+		powerGaugeRam.update({{ memory_usage }});
+		powerGaugeDisk.update({{ disk_usage }});
+	}
+
+	updateReadings();
+
+}
+
+if ( !window.isLoaded ) {
+	window.addEventListener("load", function() {
+		onDocumentReady();
+	}, false);
+} else {
+	onDocumentReady();
+}
+</script>
 
 </head>
-<body class="fixed-nav bg-dark" id="page-top">
+<body class="fixed-nav bg-dark text-light" id="page-top">
 <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top rounded-bottom" id="mainNav">
     <a class="navbar-brand" href="/"><img src="/static/imgs/nuvlabox_logo.png"/></a>
     <button class="navbar-toggler navbar-toggler-right" type="button" data-toggle="collapse" data-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
@@ -41,7 +95,57 @@
     </div>
 </nav>
 
-{{ msg }}
+<div class="container">
+    <div class="row text-center">
+        <div class="col-sm">
+            <p class="font-weight-bold">CPUs: {{ cpus_total }}</p>
+            <div id="power-gauge-cpu"></div>
+        </div>
+        <div class="col-sm">
+            <p class="font-weight-bold">Memory: {{ memory_total }}</p>
+            <div id="power-gauge-ram"></div>
+        </div>
+        <div class="col-sm">
+            <p class="font-weight-bold">Disk: {{ disk_total }}</p>
+            <div id="power-gauge-disk"></div>
+        </div>
+    </div>
+</div>
+
+
+<!--card deck-->
+
+<div class="container">
+
+    <div class="card-deck mt-5">
+        <div class="card text-white bg-info mb-auto" style="max-width: 18rem;">
+            <div class="card-header">Operating System</div>
+            <div class="card-body text-center">
+                <h4 class="card-title">{{ os }}</h4>
+            </div>
+        </div>
+        <div class="card text-white bg-info mb-auto" style="max-width: 18rem;">
+            <div class="card-header">Architecture</div>
+            <div class="card-body text-center">
+                <h4 class="card-title">{{ arch }}</h4>
+            </div>
+        </div>
+        <div class="card text-white bg-info mb-auto" style="max-width: 18rem;">
+            <div class="card-header">Docker Version</div>
+            <div class="card-body text-center">
+                <h4 class="card-title">{{ docker_version }}</h4>
+            </div>
+        </div>
+        <div class="card text-white bg-info mb-auto" style="max-width: 18rem;">
+            <div class="card-header">My IP</div>
+            <div class="card-body text-center">
+                <h4 class="card-title">{{ ip }}</h4>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- -&#45;&#45;-->
 
 <footer class="page-footer font-small text-light pt-4">
     <div class="container fixed-bottom">
