@@ -17,7 +17,6 @@ import os
 import signal
 import subprocess
 from flask import Flask, render_template, request
-from multiprocessing import Process
 from system_manager.common import utils
 from system_manager.Requirements import SystemRequirements, SoftwareRequirements
 from system_manager.Supervise import Supervise
@@ -55,20 +54,28 @@ def set_logger():
 def dashboard():
     """ Dashboard """
 
-    info = app.config["supervisor"].get_docker_info()
-    usages = app.config["supervisor"].get_system_usage()
+    docker_info = app.config["supervisor"].get_docker_info()
+    nuvlabox_status = app.config["supervisor"].get_nuvlabox_status()
+    docker_stats = app.config["supervisor"].reader(utils.docker_stats_html_file)
 
     try:
-        if not usages:
+        if not nuvlabox_status:
             return render_template("loading.html")
         else:
-            return render_template("dashboard.html", cpus_total=usages.get("cpus"),
-                                   memory_total="%.2f GB" % float(int(usages.get("memory"))/1024),
-                                   disk_total="%s GB" % usages.get("disk"),
-                                   cpu_usage=usages.get("cpu-usage"), memory_usage=usages.get("memory-usage"),
-                                   disk_usage=usages.get("disk-usage"), os=usages.get("os"),
-                                   arch=usages.get("architecture"), ip=usages.get("ip"),
-                                   docker_version=usages.get("docker-server-version"))
+            return render_template("dashboard.html", cpus_total=nuvlabox_status.get("cpus"),
+                                   memory_total="%.2f GB" % float(int(nuvlabox_status.get("memory"))/1024),
+                                   disk_total="%s GB" % nuvlabox_status.get("disk"),
+                                   cpu_usage=nuvlabox_status.get("cpu-usage"),
+                                   memory_usage=nuvlabox_status.get("memory-usage"),
+                                   disk_usage=nuvlabox_status.get("disk-usage"), os=nuvlabox_status.get("os"),
+                                   arch=nuvlabox_status.get("architecture"), ip=nuvlabox_status.get("ip"),
+                                   docker_version=nuvlabox_status.get("docker-server-version"),
+                                   hostname=nuvlabox_status.get("hostname"),
+                                   containers_running=docker_info.get("ContainersRunning"),
+                                   docker_images=docker_info.get("Images"),
+                                   swarm_node_id=docker_info["Swarm"].get("NodeID"),
+                                   docker_stats=docker_stats,
+                                   net_stats=nuvlabox_status.get("net-stats", {}))
     except:
         logging.exception("Server side error")
         os.kill(os.getppid(), signal.SIGKILL)

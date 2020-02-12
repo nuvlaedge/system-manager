@@ -71,7 +71,7 @@ var gauge = function(container, configuration) {
 
 		transitionMs				: 750,
 
-		majorTicks					: 4,
+		majorTicks					: 5,
 		labelFormat					: d3.format(',g'),
 		labelInset					: 13,
 		labelColor          : "#f8f9fa",

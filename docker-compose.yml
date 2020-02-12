@@ -7,6 +7,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./code/templates:/opt/nuvlabox/templates
       - ./code/static:/opt/nuvlabox/static
+      - ./code/test/.nuvlabox-status:/srv/nuvlabox/shared/.nuvlabox-status
     labels:
       - nuvlabox.component=True
       - nuvlabox.deployment=production
