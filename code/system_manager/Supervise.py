@@ -84,12 +84,34 @@ class Supervise(Thread):
 
         return self.docker_client.info()
 
+    def get_internal_logs_html(self, tail=30, since=None):
+        """ Get the logs for all NuvlaBox containers
+
+        :returns list of log generators
+        :returns timestamp for when the logs were fetched
+        """
+
+        nb_containers = self.list_internal_containers()
+        logs = ''
+        for container in nb_containers:
+            container_log = self.docker_client.api.logs(container.id,
+                                                        timestamps=True,
+                                                        tail=tail,
+                                                        since=since).decode('utf-8')
+
+            if container_log:
+                log_id = '<b style="color: #{};">{} |</b> '.format(container.id[:6], container.name)
+                logs += '{} {}'.format(log_id,
+                                       '<br/>{}'.format(log_id).join(container_log.splitlines()))
+                logs += '<br/>'
+        return logs, int(time.time())
+
     def write_docker_stats_table_html(self):
         """ Run docker stats """
 
         stats = '<table class="table table-striped table-hover mt-5 mr-auto">' \
                 ' <caption>Docker Stats, last update: {} UTC</caption>' \
-                ' <thead class="bg-light text-dark">' \
+                ' <thead class="bg-secondary text-light">' \
                 '  <tr>' \
                 '    <th scope="col">CONTAINER ID</th>' \
                 '    <th scope="col">NAME</th>' \
@@ -116,7 +138,7 @@ class Supervise(Thread):
                 try:
                     cpu_total = float(container_stats["cpu_stats"]["cpu_usage"]["total_usage"])
                     cpu_system = float(container_stats["cpu_stats"]["system_cpu_usage"])
-                    online_cpus = container_stats["cpu_stats"]\
+                    online_cpus = container_stats["cpu_stats"] \
                         .get("online_cpus", len(container_stats["cpu_stats"]["cpu_usage"].get("percpu_usage", -1)))
                 except (IndexError, KeyError, ValueError):
                     self.log.warning("Cannot get CPU stats for container {}. Moving on".format(container.name))
@@ -173,9 +195,9 @@ class Supervise(Thread):
                              ' <td>{}</td>' \
                              '</tr>'.format(container.id[:12],
                                             container.name[:25],
-                                            "%.2f%%" % round(cpu_percent, 2),
+                                            "%.2f" % round(cpu_percent, 2),
                                             "%sMiB / %sGiB" % (round(mem_usage, 2), round(mem_limit / 1024, 2)),
-                                            "%.2f%%" % mem_percent,
+                                            "%.2f" % mem_percent,
                                             "%sMB / %sMB" % (round(net_in, 2), round(net_out, 2)),
                                             "%sMB / %sMB" % (round(blk_in, 2), round(blk_out, 2)),
                                             container_status,

@@ -53,11 +53,11 @@
 var gauge = function(container, configuration) {
 	var that = {};
 	var config = {
-		size						: 150,
-		clipWidth					: 150,
-		clipHeight					: 110,
+		size						: 220,
+		clipWidth					: 220,
+		clipHeight					: 150,
 		ringInset					: 20,
-		ringWidth					: 20,
+		ringWidth					: 44,
 
 		pointerWidth				: 10,
 		pointerTailLength			: 10,
@@ -69,7 +69,7 @@ var gauge = function(container, configuration) {
 		minAngle					: -90,
 		maxAngle					: 90,
 
-		transitionMs				: 750,
+		transitionMs				: 4000,
 
 		majorTicks					: 5,
 		labelFormat					: d3.format(',g'),

@@ -16,7 +16,8 @@ import sys
 import os
 import signal
 import subprocess
-from flask import Flask, render_template, request
+import time
+from flask import Flask, render_template, redirect, Response, request
 from system_manager.common import utils
 from system_manager.Requirements import SystemRequirements, SoftwareRequirements
 from system_manager.Supervise import Supervise
@@ -51,12 +52,43 @@ def set_logger():
 
 
 @app.route('/')
+def main():
+    return redirect("/dashboard", code=302)
+
+@app.route('/dashboard')
 def dashboard():
     """ Dashboard """
 
     docker_info = app.config["supervisor"].get_docker_info()
     nuvlabox_status = app.config["supervisor"].get_nuvlabox_status()
     docker_stats = app.config["supervisor"].reader(utils.docker_stats_html_file)
+
+    # net_stats is provided in the form of {"iface1": {"rx_bytes": X, "tx_bytes": Y}, "iface2": ...}
+    # Reference: nuvlabox/agent
+    #
+    # Need to parse it into a chartjs dataset
+    net_stats = {
+        "labels": list(nuvlabox_status.get("net-stats", {}).keys())
+    }
+
+    rx = tx = []
+    for iface in net_stats["labels"]:
+        rx.append(float(nuvlabox_status.get("net-stats", {})[iface]["rx_bytes"]))
+        tx.append(float(nuvlabox_status.get("net-stats", {})[iface]["tx_bytes"]))
+
+    net_stats["datasets"] = [{
+        "label": "rx_bytes",
+        "backgroundColor": "#d88d0e",
+        "borderColor": "#d88d0e",
+        "borderWidth": 1,
+        "data": rx
+    }, {
+        "label": "tx_bytes",
+        "backgroundColor": "#61acb5",
+        "borderColor": "#61acb5",
+        "borderWidth": 1,
+        "data": tx
+    }]
 
     try:
         if not nuvlabox_status:
@@ -74,8 +106,40 @@ def dashboard():
                                    containers_running=docker_info.get("ContainersRunning"),
                                    docker_images=docker_info.get("Images"),
                                    swarm_node_id=docker_info["Swarm"].get("NodeID"),
-                                   docker_stats=docker_stats,
-                                   net_stats=nuvlabox_status.get("net-stats", {}))
+                                   docker_stats=docker_stats, net_stats=net_stats,
+                                   last_boot=nuvlabox_status.get("last-boot", "unknown"))
+    except:
+        logging.exception("Server side error")
+        os.kill(os.getppid(), signal.SIGKILL)
+
+
+@app.route('/dashboard/logs')
+def logs():
+    """ Logs """
+
+    past_logs, now = app.config["supervisor"].get_internal_logs_html()
+    if request.headers.get('accept') == 'text/event-stream':
+        def generate_logs(since):
+            while True:
+                new_logs, timestamp = app.config["supervisor"].get_internal_logs_html(since=since)
+                since = timestamp
+                yield "data: %s \n\n" % (new_logs)
+                time.sleep(5)  # an artificial delay
+        return Response(generate_logs(now), content_type='text/event-stream')
+
+    try:
+        return render_template("logs.html", logs=past_logs)
+    except:
+        logging.exception("Server side error")
+        os.kill(os.getppid(), signal.SIGKILL)
+
+
+@app.route('/dashboard/peripherals')
+def peripherals():
+    """ Logs """
+
+    try:
+        return render_template("peripherals.html")
     except:
         logging.exception("Server side error")
         os.kill(os.getppid(), signal.SIGKILL)
