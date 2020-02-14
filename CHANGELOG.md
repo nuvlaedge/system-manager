@@ -1,4 +1,15 @@
 # Changelog
+## [1.0.0] - 2020-02-14
+### Added 
+- internal local dashboard 
+- collection of nuvlabox logs to dashboard 
+- system information into dashboard via gauges, plots and tables 
+- graphical visualization of peripherals 
+- gunicorn local server for dashboard
+### Changed
+- collect all metrics from NuvlaBox agent
+- remove psutil dependency
+- fixed docker stats collection and slowliness
 ## [0.4.1] - 2019-11-19
 ### Added
 ### Changed
