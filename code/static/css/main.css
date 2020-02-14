@@ -8,9 +8,17 @@
 
 body {
   padding-top: 70px;
+  padding-bottom: 50px;
 }
 
 .gauges {
   font-size: 13px;
 }
 
+.peripheral-card {
+  background-color: teal;
+}
+
+.card-no-border {
+  border: none;
+}

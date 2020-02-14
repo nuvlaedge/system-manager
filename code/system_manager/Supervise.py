@@ -7,6 +7,7 @@ import docker
 import logging
 import json
 import time
+import os
 from datetime import datetime
 from system_manager.common import utils
 from threading import Thread
@@ -83,6 +84,32 @@ class Supervise(Thread):
         """ Gets everything from the Docker client info """
 
         return self.docker_client.info()
+
+    def get_nuvlabox_peripherals(self):
+        """ Reads the list of peripherals discovered by the other NuvlaBox microservices,
+        via the shared volume folder
+
+        :returns list of peripherals [{...}, {...}] with the original data schema (see Nuvla nuvlabox-peripherals)
+        """
+
+        peripherals = []
+        try:
+            peripheral_files = os.listdir(utils.nuvlabox_peripherals_folder)
+        except FileNotFoundError:
+            return peripherals
+
+        for per in peripheral_files:
+            per_file_path = "{}/{}".format(utils.nuvlabox_peripherals_folder, per)
+            try:
+                with open(per_file_path) as p:
+                    peripheral_content = json.loads(p.read())
+            except FileNotFoundError:
+                logging.warning("Cannot read peripheral {}".format(per))
+                continue
+
+            peripherals.append(peripheral_content)
+
+        return peripherals
 
     def get_internal_logs_html(self, tail=30, since=None):
         """ Get the logs for all NuvlaBox containers

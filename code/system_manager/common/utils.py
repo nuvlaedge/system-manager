@@ -10,6 +10,7 @@ import logging
 data_volume = "/srv/nuvlabox/shared"
 log_filename = "system-manager.log"
 nuvlabox_status_file = "{}/.nuvlabox-status".format(data_volume)
+nuvlabox_peripherals_folder = "{}/.peripherals".format(data_volume)
 
 docker_stats_html_file = "docker_stats.html"
 html_templates = "templates"

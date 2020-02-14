@@ -124,7 +124,7 @@ def logs():
                 new_logs, timestamp = app.config["supervisor"].get_internal_logs_html(since=since)
                 since = timestamp
                 yield "data: %s \n\n" % (new_logs)
-                time.sleep(5)  # an artificial delay
+                time.sleep(5)
         return Response(generate_logs(now), content_type='text/event-stream')
 
     try:
@@ -138,8 +138,31 @@ def logs():
 def peripherals():
     """ Logs """
 
+    peripherals_list = app.config["supervisor"].get_nuvlabox_peripherals()
+    for i, per in enumerate(peripherals_list):
+        classes = list(map(str.lower, per.get("classes", [])))
+
+        if "root_hub" in classes:
+            peripherals_list[i]["font-awesome"] = "fab fa-lg fa-usb"
+        elif "video" in classes:
+            peripherals_list[i]["font-awesome"] = "fas fa-lg fa-video"
+        elif "audio" in classes:
+            peripherals_list[i]["font-awesome"] = "fas fa-lg fa-microphone-alt"
+        elif "wireless" in classes:
+            peripherals_list[i]["font-awesome"] = "fas fa-lg fa-wifi"
+        elif "human interface device" in classes:
+            peripherals_list[i]["font-awesome"] = "far fa-lg fa-keyboard"
+        elif "communications" in classes:
+            peripherals_list[i]["font-awesome"] = "fas fa-lg fa-satellite-dish"
+        elif "fieldtalk" in classes or "modbus" in classes:
+            peripherals_list[i]["font-awesome"] = "fas fa-lg fa-exchange-alt"
+        elif "hub" in classes:
+            peripherals_list[i]["font-awesome"] = "fab fa-lg fa-usb"
+        else:
+            peripherals_list[i]["font-awesome"] = "fas fa-lg fa-slash"
+
     try:
-        return render_template("peripherals.html")
+        return render_template("peripherals.html", peripherals=peripherals_list)
     except:
         logging.exception("Server side error")
         os.kill(os.getppid(), signal.SIGKILL)
