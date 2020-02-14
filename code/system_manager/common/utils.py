@@ -5,8 +5,15 @@
  the different system manager classes """
 
 import docker
-import requests
 import logging
+
+data_volume = "/srv/nuvlabox/shared"
+log_filename = "system-manager.log"
+nuvlabox_status_file = "{}/.nuvlabox-status".format(data_volume)
+nuvlabox_peripherals_folder = "{}/.peripherals".format(data_volume)
+
+docker_stats_html_file = "docker_stats.html"
+html_templates = "templates"
 
 
 def cleanup(containers=None, exclude=None):
@@ -27,9 +34,3 @@ def cleanup(containers=None, exclude=None):
             logging.warning("Stopping container %s" % cont)
             docker.from_env().api.stop(cont.id, timeout=5)
 
-
-def change_operational_status(status):
-    """ Requests the agent to change the operational status """
-
-    url = "http://agent:5000/api/status?value={}".format(status)
-    requests.get(url)
