@@ -19,6 +19,6 @@ services:
       retries: 4
       start_period: 10s
     ports:
-      - 127.0.0.1:3637:3636
+      - 127.0.0.1:3636:3636
 
 
