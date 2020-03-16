@@ -71,7 +71,8 @@ def dashboard():
         "labels": list(nuvlabox_status.get("net-stats", {}).keys())
     }
 
-    rx = tx = []
+    rx = []
+    tx = []
     for iface in net_stats["labels"]:
         rx.append(float(nuvlabox_status.get("net-stats", {})[iface]["rx_bytes"]))
         tx.append(float(nuvlabox_status.get("net-stats", {})[iface]["tx_bytes"]))
