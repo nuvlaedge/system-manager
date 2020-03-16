@@ -1,4 +1,8 @@
 # Changelog
+## [1.0.1] - 2020-03-16
+### Added
+### Changed
+- fixed network plot with duplicate values in dashboard
 ## [1.0.0] - 2020-02-14
 ### Added 
 - internal local dashboard 
