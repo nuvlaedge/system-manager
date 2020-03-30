@@ -73,7 +73,7 @@ def dashboard():
 
     rx = []
     tx = []
-    for nstat in nuvlabox_status.get("net-stats", []):
+    for nstat in nuvlabox_status.get("resources", {}).get("net-stats", []):
         iface = nstat.get('interface')
         if not iface:
             continue
