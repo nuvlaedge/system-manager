@@ -68,14 +68,19 @@ def dashboard():
     #
     # Need to parse it into a chartjs dataset
     net_stats = {
-        "labels": list(nuvlabox_status.get("net-stats", {}).keys())
+        "labels": []
     }
 
     rx = []
     tx = []
-    for iface in net_stats["labels"]:
-        rx.append(float(nuvlabox_status.get("net-stats", {})[iface]["rx_bytes"]))
-        tx.append(float(nuvlabox_status.get("net-stats", {})[iface]["tx_bytes"]))
+    for nstat in nuvlabox_status.get("resources", {}).get("net-stats", []):
+        iface = nstat.get('interface')
+        if not iface:
+            continue
+
+        net_stats['labels'].append(iface)
+        rx.append(float(nstat['bytes-received']))
+        tx.append(float(nstat['bytes-transmitted']))
 
     net_stats["datasets"] = [{
         "label": "rx_bytes",
@@ -100,7 +105,8 @@ def dashboard():
                                    disk_total="%s GB" % nuvlabox_status.get("disk"),
                                    cpu_usage=nuvlabox_status.get("cpu-usage"),
                                    memory_usage=nuvlabox_status.get("memory-usage"),
-                                   disk_usage=nuvlabox_status.get("disk-usage"), os=nuvlabox_status.get("os"),
+                                   disk_usage=nuvlabox_status.get("disk-usage"),
+                                   os=nuvlabox_status.get("operating-system"),
                                    arch=nuvlabox_status.get("architecture"), ip=nuvlabox_status.get("ip"),
                                    docker_version=nuvlabox_status.get("docker-server-version"),
                                    hostname=nuvlabox_status.get("hostname"),
