@@ -1,4 +1,8 @@
 # Changelog
+## [1.0.2] - 2020-03-30
+### Added
+### Changed
+- retrieve resource metrics for internal dashboard according to new telemetry format
 ## [1.0.1] - 2020-03-16
 ### Added
 ### Changed
