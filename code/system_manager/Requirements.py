@@ -24,7 +24,7 @@ class SystemRequirements(object):
         self.log = logging.getLogger("app")
         self.minimum_requirements = {
             "cpu": 1,
-            "ram": 768,
+            "ram": 256,
             "disk": 1
         }
         self.docker_client = docker.from_env()
