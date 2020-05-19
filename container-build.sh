@@ -2,7 +2,7 @@
 
 MANIFEST=${DOCKER_ORG}/${DOCKER_IMAGE}:${DOCKER_TAG}
 
-platforms=(amd64 arm64 arm armv6)
+platforms=(amd64 arm64 arm armv6l)
 
 #
 # remove any previous builds
