@@ -6,7 +6,7 @@
     <groupId>sixsq.nuvlabox.system-manager</groupId>
     <artifactId>system-manager</artifactId>
     <packaging>pom</packaging>
-    <version>1.1.1-SNAPSHOT</version>
+    <version>1.1.0</version>
     <name>system-manager</name>
     <url>http://sixsq.com/</url>
 
