@@ -15,6 +15,8 @@ nuvlabox_peripherals_folder = "{}/.peripherals".format(data_volume)
 docker_stats_html_file = "docker_stats.html"
 html_templates = "templates"
 
+tls_sync_file = f"{data_volume}/.tls"
+
 
 def cleanup(containers=None, exclude=None):
     """

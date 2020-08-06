@@ -1,3 +1,14 @@
+FROM python:3-alpine AS pyopenssl-builder
+
+RUN apk update && apk add gcc musl-dev openssl-dev openssl libffi-dev
+
+WORKDIR /tmp
+
+COPY code/requirements.base.txt .
+RUN pip install -r requirements.base.txt
+
+# ---
+
 FROM python:3-alpine
 
 ARG GIT_BRANCH
@@ -13,6 +24,8 @@ LABEL git.dirty=${GIT_DIRTY}
 LABEL git.build.time=${GIT_BUILD_TIME}
 LABEL travis.build.number=${TRAVIS_BUILD_NUMBER}
 LABEL travis.build.web.url=${TRAVIS_BUILD_WEB_URL}
+
+COPY --from=pyopenssl-builder /usr/local/lib/python3.8/site-packages /usr/local/lib/python3.8/site-packages
 
 COPY code/ /opt/nuvlabox/
 

@@ -8,6 +8,7 @@ import logging
 import json
 import time
 import os
+import OpenSSL
 from datetime import datetime
 from system_manager.common import utils
 from threading import Thread
@@ -236,15 +237,70 @@ class Supervise(Thread):
                  '</table>'
         self.printer(stats, utils.docker_stats_html_file)
 
+    def is_cert_rotation_needed(self):
+        """ Checks whether the Docker and NB API certs are about to expire """
+
+        # certificates to be checked for expiration dates:
+        check_expiry_date_on = ["ca.pem", "server-cert.pem", "cert.pem"]
+
+        # if the TLS sync file does not exist, then the compute-api is going to generate the certs by itself, by default
+        if not os.path.isfile(utils.tls_sync_file):
+            return False
+
+        for file in check_expiry_date_on:
+            file_path = f"{utils.data_volume}/{file}"
+
+            if os.path.isfile(file_path):
+                with open(file_path) as fp:
+                    content = fp.read()
+
+                cert_obj = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, content)
+
+                end_date = cert_obj.get_notAfter().decode()
+                formatted_end_date = datetime(int(end_date[0:4]),
+                                              int(end_date[4:6]),
+                                              int(end_date[6:8]))
+
+                days_left = formatted_end_date - datetime.now()
+                # if expiring in less than d days, rotate all
+                d = 5
+                if days_left.days < d:
+                    self.log.warning(f"{file_path} is expiring in less than {d} days. Requesting rotation of all certs")
+                    return True
+
+        return False
+
+    def request_rotate_certificates(self):
+        """ Deletes the existing .tls sync file from the shared volume and restarts the compute-api container
+
+        This restart will force the regeneration of the certificates and consequent recommissioning """
+
+        compute_api_container = "compute-api"
+
+        if os.path.isfile(utils.tls_sync_file):
+            os.remove(utils.tls_sync_file)
+            self.log.info(f"Removed {utils.tls_sync_file}. Restarting {compute_api_container} container")
+            try:
+                self.docker_client.api.restart(compute_api_container, timeout=30)
+            except docker.errors.NotFound:
+                self.log.exception(f"Container {compute_api_container} is not running. Nothing to do...")
+
     def run(self):
-        """ Run the docker_stats streaming """
+        """ Run the periodic streaming """
         while True:
+            # docker_stats streaming
             try:
                 self.write_docker_stats_table_html()
             except:
                 # catch all exceptions, cause if there's any problem, we simply want the thread to restart
                 self.log.exception("Restarting Docker stats streamer...")
                 pass
+
+            # certificate rotation check
+            if self.is_cert_rotation_needed():
+                self.log.info("Rotating NuvlaBox certificates...")
+                self.request_rotate_certificates()
+
             time.sleep(2)
 
 
