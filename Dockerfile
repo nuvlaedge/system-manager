@@ -1,6 +1,6 @@
 FROM python:3-alpine AS pyopenssl-builder
 
-RUN apk update && apk add gcc musl-dev openssl-dev openssl libffi-dev
+RUN apk update && apk add --no-cache gcc musl-dev openssl-dev openssl libffi-dev
 
 WORKDIR /tmp
 
