@@ -1,4 +1,9 @@
 # Changelog
+## [1.1.0] - 2020-08-06
+### Added 
+- pyopenssl to Docker image 
+- supervisioning checks to issue certificates rotation when they are about to expire
+### Changed
 ## [1.0.2] - 2020-03-30
 ### Added
 ### Changed
