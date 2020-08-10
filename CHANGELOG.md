@@ -1,4 +1,8 @@
 # Changelog
+## [1.1.1] - 2020-08-10
+### Added
+### Changed
+- removed file logging
 ## [1.1.0] - 2020-08-06
 ### Added 
 - pyopenssl to Docker image 
