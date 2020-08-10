@@ -36,24 +36,25 @@ def set_logger():
     # give logger a name: app
     root = logging.getLogger("app")
     root.setLevel(logging.DEBUG)
-    # log into file
-    fh = logging.FileHandler("{}/{}".format(utils.data_volume, utils.log_filename))
-    fh.setLevel(logging.ERROR)
+    # # log into file
+    # fh = logging.FileHandler("{}/{}".format(utils.data_volume, utils.log_filename))
+    # fh.setLevel(logging.ERROR)
     # print to console
     c_handler = logging.StreamHandler(sys.stdout)
     c_handler.setLevel(logging.DEBUG)
     # format log messages
     formatter = logging.Formatter('%(levelname)s - %(funcName)s - %(message)s')
     c_handler.setFormatter(formatter)
-    fh.setFormatter(formatter)
+    # fh.setFormatter(formatter)
     # add handlers
     root.addHandler(c_handler)
-    root.addHandler(fh)
+    # root.addHandler(fh)
 
 
 @app.route('/')
 def main():
     return redirect("/dashboard", code=302)
+
 
 @app.route('/dashboard')
 def dashboard():
