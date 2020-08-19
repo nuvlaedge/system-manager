@@ -12,7 +12,7 @@ services:
       - nuvlabox.component=True
       - nuvlabox.deployment=production
     environment:
-      - SKIP_MINIMUM_REQUIREMENTS=True
+      - SKIP_MINIMUM_REQUIREMENTS=False
     restart: on-failure
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3636"]

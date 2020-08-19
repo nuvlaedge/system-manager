@@ -1,4 +1,9 @@
 # Changelog
+## [1.2.0] - 2020-08-19
+### Added 
+- optional env var SKIP_MINIMUM_REQUIREMENTS to avoid checking the system requirements before installation
+### Changed
+- cleanup logging
 ## [1.1.1] - 2020-08-10
 ### Added
 ### Changed
