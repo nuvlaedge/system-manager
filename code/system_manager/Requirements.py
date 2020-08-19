@@ -7,6 +7,13 @@ import multiprocessing
 import logging
 import shutil
 import docker
+import os
+
+
+SKIP_MINIMUM_REQUIREMENTS = False
+if 'SKIP_MINIMUM_REQUIREMENTS' in os.environ and \
+        str(os.environ.get('SKIP_MINIMUM_REQUIREMENTS', "false")).lower() == "true":
+    SKIP_MINIMUM_REQUIREMENTS = True
 
 
 class SystemRequirements(object):

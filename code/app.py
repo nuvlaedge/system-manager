@@ -17,9 +17,10 @@ import os
 import signal
 import subprocess
 import time
+import system_manager.Requirements as MinReq
 from flask import Flask, render_template, redirect, Response, request
 from system_manager.common import utils
-from system_manager.Requirements import SystemRequirements, SoftwareRequirements
+
 from system_manager.Supervise import Supervise
 
 
@@ -36,19 +37,17 @@ def set_logger():
     # give logger a name: app
     root = logging.getLogger("app")
     root.setLevel(logging.DEBUG)
-    # # log into file
-    # fh = logging.FileHandler("{}/{}".format(utils.data_volume, utils.log_filename))
-    # fh.setLevel(logging.ERROR)
+
     # print to console
     c_handler = logging.StreamHandler(sys.stdout)
     c_handler.setLevel(logging.DEBUG)
+
     # format log messages
     formatter = logging.Formatter('%(levelname)s - %(funcName)s - %(message)s')
     c_handler.setFormatter(formatter)
-    # fh.setFormatter(formatter)
+
     # add handlers
     root.addHandler(c_handler)
-    # root.addHandler(fh)
 
 
 @app.route('/')
@@ -182,44 +181,48 @@ if __name__ == "__main__":
     set_logger()
     log = logging.getLogger("app")
 
-    # Check if the system complies with the minimum hw and sw requirements for the NuvlaBox
-    system_requirements = SystemRequirements()
-    software_requirements = SoftwareRequirements()
-
     supervisor = Supervise()
 
-    if not software_requirements.check_docker_requirements() or not system_requirements.check_all_hw_requirements():
-        log.error("System does not meet the minimum requirements! Stopping")
-        utils.cleanup(supervisor.list_internal_containers(), supervisor.docker_id)
-        sys.exit(1)
-    else:
-        with open("{}/.status".format(utils.data_volume), 'w') as s:
-            s.write("OPERATIONAL")
-        log.info("Successfully created status file")
+    if not MinReq.SKIP_MINIMUM_REQUIREMENTS:
+        # Check if the system complies with the minimum hw and sw requirements for the NuvlaBox
+        system_requirements = MinReq.SystemRequirements()
+        software_requirements = MinReq.SoftwareRequirements()
 
-        peripherals = '{}/.peripherals'.format(utils.data_volume)
-
-        try:
-            # Create Directory
-            os.mkdir(peripherals)
-            log.info("Successfully created peripherals directory")
-        except FileExistsError:
-            log.info("Directory " + peripherals + " already exists")
-
-        # setup printer webserver
-        log.info("Starting local dashboard...")
-
-        try:
-            subprocess.check_output(["gunicorn", "--bind=0.0.0.0:3636", "--threads=2",
-                                     "--worker-class=gthread", "--workers=2", "--reload",
-                                     "wsgi:app"])
-        except FileNotFoundError:
-            logging.exception("Gunicorn not available!")
+        if not software_requirements.check_docker_requirements() or not system_requirements.check_all_hw_requirements():
+            log.error("System does not meet the minimum requirements! Stopping")
             utils.cleanup(supervisor.list_internal_containers(), supervisor.docker_id)
-            raise
-        except (OSError, subprocess.CalledProcessError):
-            logging.exception("Failed start local dashboard!")
-            raise
+            sys.exit(1)
+    else:
+        log.warning("You've decided to skip the system requirements verification. "
+                    "It is not guaranteed that the NuvlaBox will perform as it should. Continuing anyway...")
+
+    with open("{}/.status".format(utils.data_volume), 'w') as s:
+        s.write("OPERATIONAL")
+    log.info("Successfully created status file")
+
+    peripherals = '{}/.peripherals'.format(utils.data_volume)
+
+    try:
+        # Create Directory
+        os.mkdir(peripherals)
+        log.info("Successfully created peripherals directory")
+    except FileExistsError:
+        log.info("Directory " + peripherals + " already exists")
+
+    # setup printer webserver
+    log.info("Starting local dashboard...")
+
+    try:
+        subprocess.check_output(["gunicorn", "--bind=0.0.0.0:3636", "--threads=2",
+                                 "--worker-class=gthread", "--workers=2", "--reload",
+                                 "wsgi:app"])
+    except FileNotFoundError:
+        logging.exception("Gunicorn not available!")
+        utils.cleanup(supervisor.list_internal_containers(), supervisor.docker_id)
+        raise
+    except (OSError, subprocess.CalledProcessError):
+        logging.exception("Failed start local dashboard!")
+        raise
 
 
 
