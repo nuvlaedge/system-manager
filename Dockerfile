@@ -27,7 +27,7 @@ LABEL travis.build.web.url=${TRAVIS_BUILD_WEB_URL}
 
 COPY --from=pyopenssl-builder /usr/local/lib/python3.8/site-packages /usr/local/lib/python3.8/site-packages
 
-COPY code/ /opt/nuvlabox/
+COPY code/ LICENSE /opt/nuvlabox/
 
 WORKDIR /opt/nuvlabox/
 
@@ -36,5 +36,7 @@ RUN apk add --no-cache curl
 RUN pip install -r requirements.txt
 
 VOLUME /srv/nuvlabox/shared
+
+ONBUILD RUN ./license.sh
 
 ENTRYPOINT ["./app.py"]
