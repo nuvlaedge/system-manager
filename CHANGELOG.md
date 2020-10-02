@@ -1,4 +1,8 @@
 # Changelog
+## [1.2.1] - 2020-10-02
+### Added 
+- ONBUILD SixSq license dump
+### Changed
 ## [1.2.0] - 2020-08-19
 ### Added 
 - optional env var SKIP_MINIMUM_REQUIREMENTS to avoid checking the system requirements before installation
