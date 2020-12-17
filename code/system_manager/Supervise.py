@@ -304,13 +304,15 @@ class Supervise(Thread):
             # really nothing to do
             return
 
-        if datagateway_container.status.lowercase() not in ["running", "paused"]:
+        if datagateway_container.status.lower() not in ["running", "paused"]:
             self.log.warning(f'{container_name} is down and not restarting on its own. Forcing the restart...')
             try:
                 datagateway_container.start()
             except:
                 self.log.exception(f'Unable to force restart {container_name}. Setting operational status to {degraded}')
                 utils.set_operational_status(degraded)
+
+            utils.set_operational_status('OPERATIONAL')
 
     def run(self):
         """ Run the periodic streaming """
