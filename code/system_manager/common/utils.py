@@ -11,6 +11,7 @@ data_volume = "/srv/nuvlabox/shared"
 log_filename = "system-manager.log"
 nuvlabox_status_file = "{}/.nuvlabox-status".format(data_volume)
 nuvlabox_peripherals_folder = "{}/.peripherals".format(data_volume)
+operational_status_file = f'{data_volume}/.status'
 
 docker_stats_html_file = "docker_stats.html"
 html_templates = "templates"
@@ -36,3 +37,7 @@ def cleanup(containers=None, exclude=None):
             logging.warning("Stopping container %s" % cont)
             docker.from_env().api.stop(cont.id, timeout=5)
 
+
+def set_operational_status(status: str):
+    with open(operational_status_file, 'w') as s:
+        s.write(status)

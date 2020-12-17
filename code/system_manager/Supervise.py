@@ -285,6 +285,33 @@ class Supervise(Thread):
             except docker.errors.NotFound:
                 self.log.exception(f"Container {compute_api_container} is not running. Nothing to do...")
 
+    def keep_datagateway_up(self):
+        """ Restarts the datagateway if it is down
+
+        :return:
+        """
+
+        container_name = 'datagateway'
+
+        degraded = 'DEGRADED'
+        try:
+            datagateway_container = self.docker_client.containers.get(container_name)
+        except docker.errors.NotFound:
+            self.log.warning(f'{container_name} container is not running. Setting operational status to {degraded}')
+            utils.set_operational_status(degraded)
+            return
+        except:
+            # really nothing to do
+            return
+
+        if datagateway_container.status.lowercase() not in ["running", "paused"]:
+            self.log.warning(f'{container_name} is down and not restarting on its own. Forcing the restart...')
+            try:
+                datagateway_container.start()
+            except:
+                self.log.exception(f'Unable to force restart {container_name}. Setting operational status to {degraded}')
+                utils.set_operational_status(degraded)
+
     def run(self):
         """ Run the periodic streaming """
         while True:
@@ -301,7 +328,13 @@ class Supervise(Thread):
                 self.log.info("Rotating NuvlaBox certificates...")
                 self.request_rotate_certificates()
 
-            time.sleep(2)
+            # https://github.com/docker/for-linux/issues/293
+            # this bug causes Traefik (datagateway) to go into a exited state, regardless of the Docker restart policy
+            # it can happen because of abrupt system reboots, broken bind-mounts, or even Docker daemon error
+            # This check serves as an external boost for the datagateway to recover when in such situations
+            self.keep_datagateway_up()
+
+            time.sleep(3)
 
 
 

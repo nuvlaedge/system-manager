@@ -196,8 +196,7 @@ if __name__ == "__main__":
         log.warning("You've decided to skip the system requirements verification. "
                     "It is not guaranteed that the NuvlaBox will perform as it should. Continuing anyway...")
 
-    with open("{}/.status".format(utils.data_volume), 'w') as s:
-        s.write("OPERATIONAL")
+    utils.set_operational_status("OPERATIONAL")
     log.info("Successfully created status file")
 
     peripherals = '{}/.peripherals'.format(utils.data_volume)
