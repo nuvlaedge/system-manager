@@ -12,11 +12,21 @@ log_filename = "system-manager.log"
 nuvlabox_status_file = "{}/.nuvlabox-status".format(data_volume)
 nuvlabox_peripherals_folder = "{}/.peripherals".format(data_volume)
 operational_status_file = f'{data_volume}/.status'
+base_label = "nuvlabox.component=True"
 
 docker_stats_html_file = "docker_stats.html"
 html_templates = "templates"
 
 tls_sync_file = f"{data_volume}/.tls"
+
+with open("/proc/self/cgroup", 'r') as f:
+    docker_id = f.readlines()[0].replace('\n', '').split("/")[-1]
+
+
+def list_internal_containers():
+    """ Gets all the containers that compose the NuvlaBox Engine """
+
+    return docker.from_env().containers.list(filters={"label": base_label})
 
 
 def cleanup(containers=None, exclude=None):

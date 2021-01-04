@@ -26,21 +26,12 @@ class Supervise(Thread):
         """ Constructs the Supervise object """
 
         self.docker_client = docker.from_env()
-        self.base_label = "nuvlabox.component=True"
         self.log = logging.getLogger("app")
         self.system_usages = {}
-
-        with open("/proc/self/cgroup", 'r') as f:
-            self.docker_id = f.readlines()[0].replace('\n', '').split("/")[-1]
 
         Thread.__init__(self)
         self.daemon = True
         self.start()
-
-    def list_internal_containers(self):
-        """ Gets all the containers that compose the NuvlaBox Engine """
-
-        return self.docker_client.containers.list(filters={"label": self.base_label})
 
     @staticmethod
     def printer(content, file):

@@ -28,6 +28,7 @@ __copyright__ = "Copyright (C) 2020 SixSq"
 __email__ = "support@sixsq.com"
 
 app = Flask(__name__)
+app.config["supervisor"] = Supervise()
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 
 
@@ -180,8 +181,7 @@ if __name__ == "__main__":
     set_logger()
     log = logging.getLogger("app")
 
-    supervisor = Supervise()
-    # app.config["supervisor"] = supervisor
+    # supervisor = Supervise()
 
     if not MinReq.SKIP_MINIMUM_REQUIREMENTS:
         # Check if the system complies with the minimum hw and sw requirements for the NuvlaBox
@@ -190,7 +190,7 @@ if __name__ == "__main__":
 
         if not software_requirements.check_docker_requirements() or not system_requirements.check_all_hw_requirements():
             log.error("System does not meet the minimum requirements! Stopping")
-            utils.cleanup(supervisor.list_internal_containers(), supervisor.docker_id)
+            utils.cleanup(utils.list_internal_containers(), utils.docker_id)
             sys.exit(1)
     else:
         log.warning("You've decided to skip the system requirements verification. "
@@ -217,7 +217,7 @@ if __name__ == "__main__":
                                  "wsgi:app"])
     except FileNotFoundError:
         logging.exception("Gunicorn not available!")
-        utils.cleanup(supervisor.list_internal_containers(), supervisor.docker_id)
+        utils.cleanup(utils.list_internal_containers(), utils.docker_id)
         raise
     except (OSError, subprocess.CalledProcessError):
         logging.exception("Failed start local dashboard!")
