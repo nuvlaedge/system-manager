@@ -153,6 +153,12 @@ def peripherals():
             peripherals_list[i]["font-awesome"] = "fab fa-lg fa-usb"
         elif "video" in classes:
             peripherals_list[i]["font-awesome"] = "fas fa-lg fa-video"
+        elif "gpu" in classes:
+            peripherals_list[i]["font-awesome"] = "fas fa-lg fa-microchip"
+        elif "phone" in classes or 'smartphone' in classes:
+            peripherals_list[i]["font-awesome"] = "fas fa-lg fa-mobile"
+        elif "networkvideotransmitter" in classes:
+            peripherals_list[i]["font-awesome"] = "fas fa-lg fa-network"
         elif "audio" in classes:
             peripherals_list[i]["font-awesome"] = "fas fa-lg fa-microphone-alt"
         elif "wireless" in classes:
