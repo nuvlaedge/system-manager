@@ -8,6 +8,7 @@ import logging
 import json
 import time
 import os
+import glob
 import OpenSSL
 from datetime import datetime
 from system_manager.common import utils
@@ -95,7 +96,7 @@ class Supervise(Thread):
 
         peripherals = []
         try:
-            peripheral_files = os.listdir(utils.nuvlabox_peripherals_folder)
+            peripheral_files = glob.iglob(utils.nuvlabox_peripherals_folder + '**/**', recursive=True)
         except FileNotFoundError:
             return peripherals
 
