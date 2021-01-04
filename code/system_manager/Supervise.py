@@ -91,13 +91,14 @@ class Supervise(Thread):
         except FileNotFoundError:
             return peripherals
 
-        for per in peripheral_files:
-            per_file_path = "{}/{}".format(utils.nuvlabox_peripherals_folder, per)
+        for per_file_path in peripheral_files:
+            if os.path.isdir(per_file_path):
+                continue
             try:
                 with open(per_file_path) as p:
                     peripheral_content = json.loads(p.read())
             except FileNotFoundError:
-                logging.warning("Cannot read peripheral {}".format(per))
+                logging.warning("Cannot read peripheral {}".format(per_file_path))
                 continue
 
             peripherals.append(peripheral_content)
@@ -111,7 +112,7 @@ class Supervise(Thread):
         :returns timestamp for when the logs were fetched
         """
 
-        nb_containers = self.list_internal_containers()
+        nb_containers = utils.list_internal_containers()
         logs = ''
         for container in nb_containers:
             container_log = self.docker_client.api.logs(container.id,
