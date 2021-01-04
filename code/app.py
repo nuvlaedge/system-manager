@@ -181,7 +181,7 @@ if __name__ == "__main__":
     log = logging.getLogger("app")
 
     supervisor = Supervise()
-    app.config["supervisor"] = supervisor
+    # app.config["supervisor"] = supervisor
 
     if not MinReq.SKIP_MINIMUM_REQUIREMENTS:
         # Check if the system complies with the minimum hw and sw requirements for the NuvlaBox
