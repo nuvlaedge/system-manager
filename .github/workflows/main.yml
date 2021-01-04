@@ -27,7 +27,6 @@ jobs:
           DOCKER_PASSWORD: ${{ secrets.SIXSQ_DOCKER_PASSWORD }}
         run: ./container-release.sh
 
-
   notify:
     if: always()
     name: Post Workflow Status To Slack
