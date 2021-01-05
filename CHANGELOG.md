@@ -1,4 +1,9 @@
 # Changelog
+## [1.3.1] - 2021-01-05
+### Added
+### Changed
+ - fixed peripherals page in internal dashboard
+ - code refactoring
 ## [1.3.0] - 2020-12-17
 ### Added 
  - supervise datagateway and restart it when necessary
