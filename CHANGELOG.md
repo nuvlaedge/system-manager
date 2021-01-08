@@ -1,4 +1,9 @@
 # Changelog
+## [1.3.2] - 2021-01-08
+### Added
+### Changed
+ - fixed double logging
+ - improve container monitoring
 ## [1.3.1] - 2021-01-05
 ### Added
 ### Changed
