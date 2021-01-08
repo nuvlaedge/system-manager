@@ -148,6 +148,7 @@ class Supervise(Thread):
                 ' </thead>' \
                 ' <tbody>'.format(datetime.utcnow())
 
+        errors = []
         for container in self.docker_client.containers.list():
             previous_cpu = previous_system = cpu_percent = mem_percent = mem_usage = mem_limit = net_in = net_out = blk_in = blk_out = 0.0
             restart_count = 0
@@ -174,6 +175,9 @@ class Supervise(Thread):
                 except (IndexError, KeyError, ValueError, ZeroDivisionError) as e:
                     self.log.debug(f"Cannot get CPU stats for container {container.name}: {str(e)}. Moving on")
                     cpu_percent = 0.0
+                    error_name = f'{container.name}:cpu:{str(e)}'
+                    if error_name not in errors:
+                        errors.append(error_name)
 
                 # generate stats at least twice
                 x += 1
@@ -188,6 +192,9 @@ class Supervise(Thread):
                     except (IndexError, KeyError, ValueError) as e:
                         self.log.debug(f"Cannot get Mem stats for container {container.name}: {str(e)}. Moving on")
                         mem_percent = mem_usage = mem_limit = 0.00
+                        error_name = f'{container.name}:mem:{str(e)}'
+                        if error_name not in errors:
+                            errors.append(error_name)
 
                     if "networks" in container_stats:
                         net_in = sum(container_stats["networks"][iface]["rx_bytes"] for iface in container_stats["networks"]) / 1000 / 1000
@@ -225,6 +232,9 @@ class Supervise(Thread):
                                             restart_count)
                     # stop streaming
                     break
+
+        if errors:
+            self.log.warning(f'Failed to get some container stats. List (container:metric:error): {" ".join(errors)}')
 
         stats += ' </tbody>' \
                  '</table>'
