@@ -202,12 +202,21 @@ class Supervise(Thread):
 
                     try:
                         blk_in = float(container_stats.get("blkio_stats", {}).get("io_service_bytes_recursive", [{"value": 0}])[0]["value"] / 1000 / 1000)
-                    except IndexError:
+                    except Exception as e:
+                        self.log.debug(f"Cannot get Block stats for container {container.name}: {str(e)}. Moving on")
                         blk_in = 0.0
+                        error_name = f'{container.name}:block-in:{str(e)}'
+                        if error_name not in errors:
+                            errors.append(error_name)
                     try:
                         blk_out = float(container_stats.get("blkio_stats", {}).get("io_service_bytes_recursive", [0, {"value": 0}])[1]["value"] / 1000 / 1000)
-                    except IndexError:
+                    except Exception as e:
+                        self.log.debug(f"Cannot get Block stats for container {container.name}: {str(e)}. Moving on")
                         blk_out = 0.0
+                        error_name = f'{container.name}:block-out:{str(e)}'
+                        if error_name not in errors:
+                            errors.append(error_name)
+
                     container_status = container.status
                     restart_count = int(container.attrs["RestartCount"]) if "RestartCount" in container.attrs else 0
 
