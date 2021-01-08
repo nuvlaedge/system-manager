@@ -243,7 +243,7 @@ class Supervise(Thread):
                     break
 
         if errors:
-            self.log.warning(f'Failed to get some container stats. List (container:metric:error): {" ".join(errors)}')
+            self.log.warning(f'Failed to get some container stats. List (container:metric:error): {", ".join(errors)}')
 
         stats += ' </tbody>' \
                  '</table>'
