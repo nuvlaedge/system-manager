@@ -28,7 +28,7 @@ class SystemRequirements(object):
     def __init__(self):
         """ Constructs an SystemRequirements object """
 
-        self.log = logging.getLogger("app")
+        self.log = logging.getLogger(__name__)
         self.minimum_requirements = {
             "cpu": 1,
             "ram": 768,
@@ -93,7 +93,7 @@ class SoftwareRequirements(object):
     def __init__(self):
         """ Constructs the class """
 
-        self.log = logging.getLogger("app")
+        self.log = logging.getLogger(__name__)
 
         self.minimum_requirements = {
             "docker_version": 18

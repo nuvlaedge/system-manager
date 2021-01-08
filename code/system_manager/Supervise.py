@@ -10,6 +10,7 @@ import time
 import os
 import glob
 import OpenSSL
+import requests
 from datetime import datetime
 from system_manager.common import utils
 from threading import Thread
@@ -26,7 +27,7 @@ class Supervise(Thread):
         """ Constructs the Supervise object """
 
         self.docker_client = docker.from_env()
-        self.log = logging.getLogger("app")
+        self.log = logging.getLogger(__name__)
         self.system_usages = {}
 
         Thread.__init__(self)
@@ -313,10 +314,11 @@ class Supervise(Thread):
             # docker_stats streaming
             try:
                 self.write_docker_stats_table_html()
+            except requests.exceptions.ConnectionError:
+                raise
             except:
                 # catch all exceptions, cause if there's any problem, we simply want the thread to restart
                 self.log.exception("Restarting Docker stats streamer...")
-                pass
 
             # certificate rotation check
             if self.is_cert_rotation_needed():

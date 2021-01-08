@@ -5,7 +5,7 @@
  the different system manager classes """
 
 import docker
-import logging
+from system_manager.common.logging import logging
 
 data_volume = "/srv/nuvlabox/shared"
 log_filename = "system-manager.log"
@@ -18,6 +18,8 @@ docker_stats_html_file = "docker_stats.html"
 html_templates = "templates"
 
 tls_sync_file = f"{data_volume}/.tls"
+
+log = logging.getLogger(__name__)
 
 with open("/proc/self/cgroup", 'r') as f:
     docker_id = f.readlines()[0].replace('\n', '').split("/")[-1]
@@ -44,7 +46,7 @@ def cleanup(containers=None, exclude=None):
             if exclude and exclude == cont.id:
                 pass
 
-            logging.warning("Stopping container %s" % cont)
+            log.warning("Stopping container %s" % cont)
             docker.from_env().api.stop(cont.id, timeout=5)
 
 
