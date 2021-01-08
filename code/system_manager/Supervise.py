@@ -172,7 +172,7 @@ class Supervise(Thread):
                     previous_system = cpu_system
                     previous_cpu = cpu_total
                 except (IndexError, KeyError, ValueError, ZeroDivisionError) as e:
-                    self.log.warning(f"Cannot get CPU stats for container {container.name}: {str(e)}. Moving on")
+                    self.log.debug(f"Cannot get CPU stats for container {container.name}: {str(e)}. Moving on")
                     cpu_percent = 0.0
 
                 # generate stats at least twice
@@ -181,14 +181,13 @@ class Supervise(Thread):
                     try:
                         mem_usage = float(container_stats["memory_stats"]["usage"] / 1024 / 1024)
                         mem_limit = float(container_stats["memory_stats"]["limit"] / 1024 / 1024)
-                    except (IndexError, KeyError, ValueError):
-                        self.log.warning("Cannot get Mem stats for container {}. Moving on".format(container.name))
-                        break
-
-                    if round(mem_limit, 2) == 0.00:
-                        mem_percent = 0.00
-                    else:
-                        mem_percent = round(float(mem_usage / mem_limit) * 100, 2)
+                        if round(mem_limit, 2) == 0.00:
+                            mem_percent = 0.00
+                        else:
+                            mem_percent = round(float(mem_usage / mem_limit) * 100, 2)
+                    except (IndexError, KeyError, ValueError) as e:
+                        self.log.debug(f"Cannot get Mem stats for container {container.name}: {str(e)}. Moving on")
+                        mem_percent = mem_usage = mem_limit = 0.00
 
                     if "networks" in container_stats:
                         net_in = sum(container_stats["networks"][iface]["rx_bytes"] for iface in container_stats["networks"]) / 1000 / 1000
