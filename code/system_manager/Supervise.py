@@ -162,18 +162,18 @@ class Supervise(Thread):
                     cpu_system = float(container_stats["cpu_stats"]["system_cpu_usage"])
                     online_cpus = container_stats["cpu_stats"] \
                         .get("online_cpus", len(container_stats["cpu_stats"]["cpu_usage"].get("percpu_usage", -1)))
-                except (IndexError, KeyError, ValueError):
-                    self.log.warning("Cannot get CPU stats for container {}. Moving on".format(container.name))
-                    break
 
-                cpu_delta = cpu_total - previous_cpu
-                system_delta = cpu_system - previous_system
+                    cpu_delta = cpu_total - previous_cpu
+                    system_delta = cpu_system - previous_system
 
-                if system_delta > 0.0 and online_cpus > -1:
-                    cpu_percent = (cpu_delta / system_delta) * online_cpus * 100.0
+                    if system_delta > 0.0 and online_cpus > -1:
+                        cpu_percent = (cpu_delta / system_delta) * online_cpus * 100.0
 
-                previous_system = cpu_system
-                previous_cpu = cpu_total
+                    previous_system = cpu_system
+                    previous_cpu = cpu_total
+                except (IndexError, KeyError, ValueError, ZeroDivisionError) as e:
+                    self.log.warning(f"Cannot get CPU stats for container {container.name}: {str(e)}. Moving on")
+                    cpu_percent = 0.0
 
                 # generate stats at least twice
                 x += 1
