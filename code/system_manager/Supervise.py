@@ -326,6 +326,25 @@ class Supervise(Thread):
 
             utils.set_operational_status('OPERATIONAL')
 
+    def keep_datagateway_containers_up(self):
+        """ Restarts the datagateway containers, if any. These are identified by their labels
+
+        :return:
+        """
+
+        container_label = 'nuvlabox.data-source-container=True'
+
+        datagateway_containers = self.docker_client.containers.list(filters={'label': container_label})
+
+        for dg_container in datagateway_containers:
+            if dg_container.status.lower() not in ["running", "paused"]:
+                self.log.warning(f'The data-gateway container {dg_container.name} is down. Forcing its restart...')
+
+            try:
+                dg_container.start()
+            except Exception as e:
+                self.log.exception(f'Unable to force restart {dg_container.name}. Reason: {str(e)}')
+
     def run(self):
         """ Run the periodic streaming """
         while True:
@@ -343,11 +362,20 @@ class Supervise(Thread):
                 self.log.info("Rotating NuvlaBox certificates...")
                 self.request_rotate_certificates()
 
+            # COPING WITH CORNER CASE ISSUES 1
             # https://github.com/docker/for-linux/issues/293
             # this bug causes Traefik (datagateway) to go into a exited state, regardless of the Docker restart policy
             # it can happen because of abrupt system reboots, broken bind-mounts, or even Docker daemon error
             # This check serves as an external boost for the datagateway to recover when in such situations
             self.keep_datagateway_up()
+
+            # COPING WITH CORNER CASE ISSUES 2
+            # https://github.com/docker/compose/issues/6385
+            # occasionally, a container restart might fail to
+            # find the overlay nuvlabox-shared-netword: "failed to get network during CreateEndpoint: network"
+            # It might be solved in recent versions of Docker: https://github.com/moby/moby/pull/41189
+            # But for older versions, this routine makes sure the datagateway data-source* containers are kept alive
+            self.keep_datagateway_containers_up()
 
             time.sleep(3)
 
