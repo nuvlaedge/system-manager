@@ -328,7 +328,7 @@ class Supervise():
 
         container_label = 'nuvlabox.data-source-container=True'
 
-        datagateway_containers = self.docker_client.containers.list(filters={'label': container_label})
+        datagateway_containers = self.docker_client.containers.list(all=True, filters={'label': container_label})
 
         for dg_container in datagateway_containers:
             if dg_container.status.lower() not in ["running", "paused"]:
