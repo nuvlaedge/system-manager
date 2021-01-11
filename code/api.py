@@ -1,17 +1,14 @@
 #!/usr/local/bin/python
 # -*- coding: utf-8 -*-
 
-"""NuvlaBox System Manager service
+"""NuvlaBox System Manager service - api
 
-This service makes sure the NuvlaBox engine can be
-installed in the device and supervises all internal
-components of the NuvlaBox
+Internal dashboard
 
 Arguments:
 
 """
 
-import logging
 import os
 import signal
 import time

@@ -10,13 +10,11 @@ import time
 import os
 import glob
 import OpenSSL
-import requests
 from datetime import datetime
 from system_manager.common import utils
-from threading import Thread
 
 
-class Supervise(Thread):
+class Supervise():
     """ The Supervise class contains all the methods and
     definitions for making sure the NuvlaBox Engine is running smoothly,
     including all methods for dealing with system disruptions and
@@ -29,10 +27,6 @@ class Supervise(Thread):
         self.docker_client = docker.from_env()
         self.log = logging.getLogger(__name__)
         self.system_usages = {}
-
-        Thread.__init__(self)
-        self.daemon = True
-        self.start()
 
     @staticmethod
     def printer(content, file):
@@ -344,40 +338,3 @@ class Supervise(Thread):
                 dg_container.start()
             except Exception as e:
                 self.log.exception(f'Unable to force restart {dg_container.name}. Reason: {str(e)}')
-
-    def run(self):
-        """ Run the periodic streaming """
-        while True:
-            # docker_stats streaming
-            try:
-                self.write_docker_stats_table_html()
-            except requests.exceptions.ConnectionError:
-                raise
-            except:
-                # catch all exceptions, cause if there's any problem, we simply want the thread to restart
-                self.log.exception("Restarting Docker stats streamer...")
-
-            # certificate rotation check
-            if self.is_cert_rotation_needed():
-                self.log.info("Rotating NuvlaBox certificates...")
-                self.request_rotate_certificates()
-
-            # COPING WITH CORNER CASE ISSUES 1
-            # https://github.com/docker/for-linux/issues/293
-            # this bug causes Traefik (datagateway) to go into a exited state, regardless of the Docker restart policy
-            # it can happen because of abrupt system reboots, broken bind-mounts, or even Docker daemon error
-            # This check serves as an external boost for the datagateway to recover when in such situations
-            self.keep_datagateway_up()
-
-            # COPING WITH CORNER CASE ISSUES 2
-            # https://github.com/docker/compose/issues/6385
-            # occasionally, a container restart might fail to
-            # find the overlay nuvlabox-shared-netword: "failed to get network during CreateEndpoint: network"
-            # It might be solved in recent versions of Docker: https://github.com/moby/moby/pull/41189
-            # But for older versions, this routine makes sure the datagateway data-source* containers are kept alive
-            self.keep_datagateway_containers_up()
-
-            time.sleep(3)
-
-
-

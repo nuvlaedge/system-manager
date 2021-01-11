@@ -1,11 +1,10 @@
 #!/usr/local/bin/python
 # -*- coding: utf-8 -*-
 
-"""NuvlaBox System Manager service
+"""NuvlaBox System Manager service - check requirements
 
 This service makes sure the NuvlaBox engine can be
-installed in the device and supervises all internal
-components of the NuvlaBox
+installed in the device
 
 Arguments:
 
