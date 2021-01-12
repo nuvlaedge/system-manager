@@ -1,4 +1,10 @@
 # Changelog
+## [1.4.0] - 2021-01-12
+### Added 
+ - supervision of datagateway containers
+### Changed
+ - run internal dashboard as a daemon
+ - code refactoring
 ## [1.3.2] - 2021-01-08
 ### Added
 ### Changed
