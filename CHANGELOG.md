@@ -1,4 +1,8 @@
 # Changelog
+## [1.4.1] - 2021-01-12
+### Added 
+ - reap obsolete data-gateway containers, based on their Nuvla resource ID
+### Changed
 ## [1.4.0] - 2021-01-12
 ### Added 
  - supervision of datagateway containers
