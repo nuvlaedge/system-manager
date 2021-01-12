@@ -344,10 +344,10 @@ class Supervise():
                 # then it means the peripheral is gone, and the DG container was not removed
                 self.log.warning(f"Found old DG container {dg_container.name}. Trying to disable it")
                 try:
-                    r = requests.get("https://management-api:5001/api/data-source-mjpg/disable",
-                                     verify=False,
-                                     cert=(utils.cert_file, utils.key_file),
-                                     json={"id": id})
+                    r = requests.post("https://management-api:5001/api/data-source-mjpg/disable",
+                                      verify=False,
+                                      cert=(utils.cert_file, utils.key_file),
+                                      json={"id": id})
                     r.raise_for_status()
                 except:
                     # force disable manual
