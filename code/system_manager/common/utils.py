@@ -10,6 +10,8 @@ from system_manager.common.logging import logging
 data_volume = "/srv/nuvlabox/shared"
 log_filename = "system-manager.log"
 nuvlabox_status_file = "{}/.nuvlabox-status".format(data_volume)
+cert_file = f"{data_volume}/cert.pem"
+key_file = f"{data_volume}/key.pem"
 nuvlabox_peripherals_folder = "{}/.peripherals".format(data_volume)
 operational_status_file = f'{data_volume}/.status'
 base_label = "nuvlabox.component=True"

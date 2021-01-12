@@ -10,6 +10,7 @@ import time
 import os
 import glob
 import OpenSSL
+import requests
 from datetime import datetime
 from system_manager.common import utils
 
@@ -330,7 +331,34 @@ class Supervise():
 
         datagateway_containers = self.docker_client.containers.list(all=True, filters={'label': container_label})
 
+        if datagateway_containers:
+            peripherals = self.get_nuvlabox_peripherals()
+        else:
+            return
+
+        peripheral_ids = list(map(lambda x: x.get("id"), peripherals))
+
         for dg_container in datagateway_containers:
+            id = f"nuvlabox-peripheral/{dg_container.name}"
+            if id not in peripheral_ids:
+                # then it means the peripheral is gone, and the DG container was not removed
+                self.log.warning(f"Found old DG container {dg_container.name}. Trying to disable it")
+                try:
+                    r = requests.get("https://management-api:5001/api/data-source-mjpg/disable",
+                                     verify=False,
+                                     cert=(utils.cert_file, utils.key_file),
+                                     json={"id": id})
+                    r.raise_for_status()
+                except:
+                    # force disable manual
+                    self.log.exception(f"Could not disable DG container {dg_container.name} via the management-api. Force deleting it...")
+                    try:
+                        dg_container.remove(force=True)
+                    except Exception as e:
+                        self.log.error(f"Unable to cleanup old DG container {dg_container.name}: {str(e)}")
+
+                continue
+
             if dg_container.status.lower() not in ["running", "paused"]:
                 self.log.warning(f'The data-gateway container {dg_container.name} is down. Forcing its restart...')
 
