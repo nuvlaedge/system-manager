@@ -1,4 +1,4 @@
-FROM python:3.8-alpine AS pyopenssl-builder
+FROM python:3.9-alpine AS pyopenssl-builder
 
 RUN apk update && apk add --no-cache gcc musl-dev openssl-dev openssl libffi-dev
 
@@ -9,7 +9,7 @@ RUN pip install -r requirements.base.txt
 
 # ---
 
-FROM python:3.8-alpine
+FROM python:3.9-alpine
 
 ARG GIT_BRANCH
 ARG GIT_COMMIT_ID
@@ -23,7 +23,7 @@ LABEL git.build.time=${GIT_BUILD_TIME}
 LABEL git.run.number=${GITHUB_RUN_NUMBER}
 LABEL git.run.id=${TRAVIS_BUILD_WEB_URL}
 
-COPY --from=pyopenssl-builder /usr/local/lib/python3.8/site-packages /usr/local/lib/python3.8/site-packages
+COPY --from=pyopenssl-builder /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
 
 COPY code/ LICENSE /opt/nuvlabox/
 
@@ -37,4 +37,4 @@ VOLUME /srv/nuvlabox/shared
 
 ONBUILD RUN ./license.sh
 
-ENTRYPOINT ["./system-manager.sh"]
+ENTRYPOINT ["./run.py"]
