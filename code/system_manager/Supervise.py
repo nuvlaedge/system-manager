@@ -374,11 +374,13 @@ class Supervise():
             if utils.nuvlabox_overlay_shared_net not in dg_networks:
                 # DG is not connected to it
                 # let's connect it
+                self.log.info(f'Connecting {dg_container_name} to {utils.nuvlabox_overlay_shared_net}')
                 nb_overlay_net.connect(dg_container_name)
 
             if utils.nuvlabox_overlay_shared_net not in agent_networks:
                 # Agent is not connected to it
                 # let's connect it
+                self.log.info(f'Connecting Agent {agent_container_id.json()} to {utils.nuvlabox_overlay_shared_net}')
                 nb_overlay_net.connect(agent_container_id.json())
 
     def find_nuvlabox_shared_network(self):
@@ -387,6 +389,7 @@ class Supervise():
                 return self.docker_client.networks.get(utils.nuvlabox_overlay_shared_net)
             except docker.errors.NotFound:
                 if self.i_am_leader:
+                    self.log.info(f'Propagating, as a leader, {utils.nuvlabox_overlay_shared_net} across the cluster')
                     self.propagate_overlay_network()
                 else:
                     self.log.warning(f'Waiting for the cluster leader to propagate {utils.nuvlabox_overlay_shared_net}')
@@ -411,12 +414,13 @@ class Supervise():
             # good, it doesn't exist
             pass
         except docker.errors.APIError as e:
-            self.log.exception(f'Unable to manage service {global_service_name}: {str(e)}')
+            self.log.error(f'Unable to manage service {global_service_name}: {str(e)}')
             return
 
         if ack_service:
             # if we got a request to propagate, even though there's already a service, then there might be something
             # wrong with the service. Let's force an update to see if it fixes something
+            self.log.warning(f'Network propagation service {global_service_name} already exists. Forcing update')
             ack_service.force_update()
             return
 
@@ -430,6 +434,22 @@ class Supervise():
             "condition": "on-failure"
         }
 
+        # let's create the overlay network
+        try:
+            self.docker_client.networks.create(utils.nuvlabox_overlay_shared_net,
+                                               driver="overlay",
+                                               attachable=True,
+                                               options={"encrypted": "True"})
+        except docker.errors.APIError as e:
+            if '409' in str(e):
+                # already exists
+                self.log.warning(f'Unexpected conflict (moving on): {str(e)}')
+                pass
+            else:
+                self.log.error(f'Unable to create NuvlaBox overlay net {utils.nuvlabox_overlay_shared_net}: {str(e)}')
+                return
+
+        self.log.info(f'Launching global network propagation service {global_service_name}')
         self.docker_client.services.create('alpine',
                                            command=f"echo {self.node}",
                                            container_labels=labels,
