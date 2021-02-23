@@ -16,6 +16,8 @@ nuvlabox_peripherals_folder = "{}/.peripherals".format(data_volume)
 operational_status_file = f'{data_volume}/.status'
 base_label = "nuvlabox.component=True"
 
+nuvlabox_overlay_shared_net = 'nuvlabox-shared-network'
+
 docker_stats_html_file = "docker_stats.html"
 html_templates = "templates"
 

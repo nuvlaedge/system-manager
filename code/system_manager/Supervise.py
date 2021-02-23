@@ -28,6 +28,8 @@ class Supervise():
         self.docker_client = docker.from_env()
         self.log = logging.getLogger(__name__)
         self.system_usages = {}
+        self.i_am_leader = self.i_am_manager = self.is_swarm_enabled = self.node = None
+        self.classify_this_node()
 
     @staticmethod
     def printer(content, file):
@@ -45,6 +47,38 @@ class Supervise():
 
         with open("{}/{}".format(utils.html_templates, file)) as r:
             return r.read()
+
+    def classify_this_node(self):
+        dinfo = self.get_docker_info()
+        swarm_info = dinfo.get('Swarm', {})
+
+        # is it running in Swarm mode?
+        node_id = swarm_info.get('NodeID')
+        # might have a Node ID but still, LocalNodeState might be inactive
+        local_node_state = swarm_info.get('LocalNodeState', 'inactive')
+        if not node_id or local_node_state.lower() == "inactive":
+            self.i_am_leader = self.i_am_manager = self.is_swarm_enabled = False
+            return
+
+        # if it got here, there Swarm is active
+        active_swarm = True
+
+        remote_managers = [rm.get('NodeID') for rm in swarm_info.get('RemoteManagers', [])]
+        i_am_manager = True if node_id in remote_managers else False
+
+        if not i_am_manager:
+            self.i_am_leader = False
+            self.i_am_manager = i_am_manager
+            self.is_swarm_enabled = active_swarm
+            return
+
+        # if it got here, then this node is a manager
+        self.node = self.docker_client.nodes.get(node_id)
+        i_am_leader = True if self.node.attrs['ManagerStatus'].get('Leader') else False
+
+        self.i_am_leader = i_am_leader
+        self.i_am_manager = i_am_manager
+        self.is_swarm_enabled = active_swarm
 
     def get_nuvlabox_status(self):
         """ Re-uses the consumption metrics from NuvlaBox Agent """
@@ -292,19 +326,23 @@ class Supervise():
             except docker.errors.NotFound:
                 self.log.exception(f"Container {compute_api_container} is not running. Nothing to do...")
 
-    def keep_datagateway_up(self):
-        """ Restarts the datagateway if it is down
+    def monitor_data_gateway(self):
+        """ Restarts the datagateway container (traefik) if it is down and connects containers to the DG
 
         :return:
         """
 
-        container_name = 'datagateway'
+        dg_container_name = 'data-gateway'
+        # Agent also needs to be connected to the data-gateway, so that it can broadcast telemetry via MQTT
+        agent_container_id = requests.get('http://agent/api/agent-container-id')
+        agent_container_id.raise_for_status()
 
         degraded = 'DEGRADED'
         try:
-            datagateway_container = self.docker_client.containers.get(container_name)
-        except docker.errors.NotFound:
-            self.log.warning(f'{container_name} container is not running. Setting operational status to {degraded}')
+            datagateway_container = self.docker_client.containers.get(dg_container_name)
+            agent_container = self.docker_client.containers.get(agent_container_id.json())
+        except docker.errors.NotFound as e:
+            self.log.warning(f'Setting operational status to {degraded}: {str(e)}')
             utils.set_operational_status(degraded)
             return
         except:
@@ -312,14 +350,91 @@ class Supervise():
             return
 
         if datagateway_container.status.lower() not in ["running", "paused"]:
-            self.log.warning(f'{container_name} is down and not restarting on its own. Forcing the restart...')
+            self.log.warning(f'{dg_container_name} is down and not restarting on its own. Forcing the restart...')
             try:
                 datagateway_container.start()
             except:
-                self.log.exception(f'Unable to force restart {container_name}. Setting operational status to {degraded}')
+                self.log.exception(f'Unable to force restart {dg_container_name}. Setting operational status to {degraded}')
                 utils.set_operational_status(degraded)
 
+            return
+        else:
             utils.set_operational_status('OPERATIONAL')
+
+        # at this point, the DG should be up and running
+        nb_overlay_net = self.find_nuvlabox_shared_network()
+        if nb_overlay_net:
+            dg_networks = datagateway_container.attrs['NetworkSettings'].get('Networks', {}).keys()
+            agent_networks = agent_container.attrs['NetworkSettings'].get('Networks', {}).keys()
+            if utils.nuvlabox_overlay_shared_net not in dg_networks:
+                # DG is not connected to it
+                # let's connect it
+                nb_overlay_net.connect(dg_container_name)
+
+            if utils.nuvlabox_overlay_shared_net not in agent_networks:
+                # Agent is not connected to it
+                # let's connect it
+                nb_overlay_net.connect(agent_container_id.json())
+
+    def find_nuvlabox_shared_network(self):
+        if self.is_swarm_enabled:
+            try:
+                return self.docker_client.networks.get(utils.nuvlabox_overlay_shared_net)
+            except docker.errors.NotFound:
+                if self.i_am_leader:
+                    self.propagate_overlay_network()
+                else:
+                    self.log.warning(f'Waiting for the cluster leader to propagate {utils.nuvlabox_overlay_shared_net}')
+
+                return False
+        else:
+            self.log.debug(f"Not running in a cluster, thus {utils.nuvlabox_overlay_shared_net} network won't exist")
+            return False
+
+    def propagate_overlay_network(self):
+        """
+        In a cluster, the leading NB will create a global-job service to propagate the nuvlabox-shared-network
+
+        :return:
+        """
+
+        global_service_name = "nuvlabox-ack"
+        ack_service = None
+        try:
+            ack_service = self.docker_client.services.get(global_service_name)
+        except docker.errors.APIError as e:
+            self.log.exception(f'Unable to manage this service: {str(e)}')
+            return
+        except docker.errors.NotFound:
+            # good, it doesn't exist
+            pass
+
+        if ack_service:
+            # if we got a request to propagate, even though there's already a service, then there might be something
+            # wrong with the service. Let's force an update to see if it fixes something
+            ack_service.force_update()
+            return
+
+        # otherwise, let's create the global service
+        labels = {
+            "nuvlabox.component": "True",
+            "nuvlabox.deployment": "production",
+            "nuvlabox.ack": "True"
+        }
+        restart_policy = {
+            "condition": "on-failure"
+        }
+
+        self.docker_client.services.create('alpine',
+                                           command=f"echo {self.node}",
+                                           container_labels=labels,
+                                           labels=labels,
+                                           mode="global",
+                                           name=global_service_name,
+                                           networks=[utils.nuvlabox_overlay_shared_net],
+                                           restart_policy=restart_policy,
+                                           stop_grace_period=3,
+                                           )
 
     def keep_datagateway_containers_up(self):
         """ Restarts the datagateway containers, if any. These are identified by their labels
