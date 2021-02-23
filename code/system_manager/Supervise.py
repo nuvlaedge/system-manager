@@ -334,7 +334,12 @@ class Supervise():
 
         dg_container_name = 'data-gateway'
         # Agent also needs to be connected to the data-gateway, so that it can broadcast telemetry via MQTT
-        agent_container_id = requests.get('http://agent/api/agent-container-id')
+        try:
+            agent_container_id = requests.get('http://agent/api/agent-container-id')
+        except requests.exceptions.ConnectionError:
+            self.log.warning('Agent API is not ready yet. Trying again later')
+            return
+
         agent_container_id.raise_for_status()
 
         degraded = 'DEGRADED'
@@ -402,12 +407,12 @@ class Supervise():
         ack_service = None
         try:
             ack_service = self.docker_client.services.get(global_service_name)
-        except docker.errors.APIError as e:
-            self.log.exception(f'Unable to manage this service: {str(e)}')
-            return
         except docker.errors.NotFound:
             # good, it doesn't exist
             pass
+        except docker.errors.APIError as e:
+            self.log.exception(f'Unable to manage service {global_service_name}: {str(e)}')
+            return
 
         if ack_service:
             # if we got a request to propagate, even though there's already a service, then there might be something
