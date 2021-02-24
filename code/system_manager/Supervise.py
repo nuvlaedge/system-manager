@@ -392,13 +392,60 @@ class Supervise():
             except docker.errors.NotFound:
                 self.log.exception(f"Container {compute_api_container} is not running. Nothing to do...")
 
-    def monitor_data_gateway(self):
-        """ Restarts the datagateway container (traefik) if it is down and connects containers to the DG
+    def launch_data_gateway(self, router_name: str, mqtt_broker_name: str, mode: str = 'swarm') -> bool:
+        """
+        Starts the DG services/containers, depending on the mode
+
+        :param router_name: name of the routing component
+        :param mqtt_broker_name: name of the MQTT broker
+        :param mode: "swarm" for Docker Swarm mode. Anything else for standalone Docker machine
+
+        :return: bool
+        """
+
+        if mode == 'swarm':
+            pass
+        else:
+            # the router
+            try:
+                router = self.docker_client.containers.run('traefik:2.3.5',
+                                                           name=router_name...)
+            except docker.errors.APIError as e:
+                try:
+                    if '409' in str(e):
+                        # already exists
+                        self.log.warning(f'Despite the request to launch the Data Gateway, '
+                                         f'{router_name} seems to exist already. Forcing its restart just in case')
+                        self.docker_client.containers.get(router_name).restart()
+                    else:
+                        raise e
+                except Exception as e:
+                    self.log.error(f'Unable to launch Data Gateway router {router_name}: {str(e)}')
+                    return False
+        try:
+            if mode == 'swarm':
+                pass
+            else:
+                router_container = self.docker_client.containers.get(router_name)
+        except docker.errors.NotFound as e:
+            # this is good, as expected it doesn't exist yet
+            router_container = None
+        except Exception as e:
+            self.log.error(f'Unexpected error while trying to launch Data Gateway in {mode} mode: {str(e)}')
+            return False
+
+
+
+
+    def manage_data_gateway(self):
+        """ Sets the DG service
 
         :return:
         """
 
-        dg_container_name = 'data-gateway'
+        dg_name = 'data-gateway'
+        mqtt_broker_name = 'nb-mosquitto'
+
         # Agent also needs to be connected to the data-gateway, so that it can broadcast telemetry via MQTT
         try:
             agent_container_id = requests.get('http://agent/api/agent-container-id')
@@ -409,8 +456,27 @@ class Supervise():
         agent_container_id.raise_for_status()
 
         degraded = 'DEGRADED'
+        if self.i_am_manager:
+            # if I am a manager, than I can check the state of the DG
+            try:
+                dg_service = self.docker_client.services.get(dg_name)
+            except docker.errors.NotFound:
+                self.log.info(f'Data Gateway service {dg_name} not found. I am manager, so let me schedule it')
+        else:
+            # then I am a worker. But I might still need to setup the DG if I am not in Swarm mode
+            if not self.is_swarm_enabled:
+                shared_network = self.find_network(utils.nuvlabox_shared_net)
+                if not shared_network:
+                    if not self.setup_network(utils.nuvlabox_shared_net, "bridge"):
+                        utils.set_operational_status(degraded)
+                        return
+
+                # now let's start the DG containers
+                if not self.launch_data_gateway(dg_name, mqtt_broker_name, mode='docker'):
+                    utils.set_operational_status(degraded)
+
+
         try:
-            datagateway_container = self.docker_client.containers.get(dg_container_name)
             agent_container = self.docker_client.containers.get(agent_container_id.json())
         except docker.errors.NotFound as e:
             self.log.warning(f'Setting operational status to {degraded}: {str(e)}')
@@ -449,83 +515,92 @@ class Supervise():
                 self.log.info(f'Connecting Agent {agent_container_id.json()} to {utils.nuvlabox_overlay_shared_net}')
                 nb_overlay_net.connect(agent_container_id.json())
 
-    def find_nuvlabox_shared_network(self):
-        if self.is_swarm_enabled:
-            try:
-                return self.docker_client.networks.get(utils.nuvlabox_overlay_shared_net)
-            except docker.errors.NotFound:
-                if self.i_am_leader:
-                    self.log.info(f'Propagating, as a leader, {utils.nuvlabox_overlay_shared_net} across the cluster')
-                    self.propagate_overlay_network()
-                else:
-                    self.log.warning(f'Waiting for the cluster leader to propagate {utils.nuvlabox_overlay_shared_net}')
+    def find_network(self, network_name: str) -> object or None:
+        """
+        Finds a network by name
 
+        :param network_name: name of the network
+        :return: Docker network object or None
+        """
+        try:
+            return self.docker_client.networks.get(network_name)
+        except docker.errors.NotFound:
+            self.log.info(f'Shared network {network_name} not found')
+
+            return None
+
+    def setup_network(self, net_name: str, driver: str) -> bool:
+        """
+        Creates a Docker network.
+        If driver is overlay, then the network is also attachable and a propagation global service is also launched
+
+        :param net_name: network name
+        :param driver: driver name (bridge or overlay)
+        :return: bool
+        """
+
+        try:
+            if driver == "bridge":
+                self.docker_client.networks.create(net_name)
+                return True
+            elif driver == "overlay":
+                self.docker_client.networks.create(net_name,
+                                                   driver=driver,
+                                                   attachable=True,
+                                                   options={"encrypted": "True"})
+            else:
+                self.log.warning(f'Driver {driver} not supported')
+                return True
+        except docker.errors.APIError as e:
+            if '409' in str(e):
+                # already exists
+                self.log.warning(f'Unexpected conflict (moving on): {str(e)}')
+            else:
+                self.log.error(f'Unable to create NuvlaBox {driver} network {net_name}: {str(e)}')
                 return False
-        else:
-            self.log.debug(f"Not running in a cluster, thus {utils.nuvlabox_overlay_shared_net} network won't exist")
-            return False
 
-    def propagate_overlay_network(self):
-        """
-        In a cluster, the leading NB will create a global-job service to propagate the nuvlabox-shared-network
-
-        :return:
-        """
-
-        global_service_name = "nuvlabox-ack"
+        # if we got here, then we are handling an overlay network, and thus we need the propagation service
         ack_service = None
         try:
-            ack_service = self.docker_client.services.get(global_service_name)
+            ack_service = self.docker_client.services.get(utils.overlay_network_service)
         except docker.errors.NotFound:
             # good, it doesn't exist
             pass
         except docker.errors.APIError as e:
-            self.log.error(f'Unable to manage service {global_service_name}: {str(e)}')
-            return
+            self.log.error(f'Unable to manage service {utils.overlay_network_service}: {str(e)}')
+            return False
 
         if ack_service:
             # if we got a request to propagate, even though there's already a service, then there might be something
             # wrong with the service. Let's force an update to see if it fixes something
-            self.log.warning(f'Network propagation service {global_service_name} already exists. Forcing update')
+            self.log.warning(f'Network propagation service {utils.overlay_network_service} already exists. '
+                             f'Forcing update')
             ack_service.force_update()
-            return
+            return True
 
         # otherwise, let's create the global service
         labels = {
             "nuvlabox.component": "True",
             "nuvlabox.deployment": "production",
-            "nuvlabox.ack": "True"
+            "nuvlabox.overlay_network_service": "True"
         }
         restart_policy = {
             "condition": "on-failure"
         }
 
-        # let's create the overlay network
-        try:
-            self.docker_client.networks.create(utils.nuvlabox_overlay_shared_net,
-                                               driver="overlay",
-                                               attachable=True,
-                                               options={"encrypted": "True"})
-        except docker.errors.APIError as e:
-            if '409' in str(e):
-                # already exists
-                self.log.warning(f'Unexpected conflict (moving on): {str(e)}')
-                pass
-            else:
-                self.log.error(f'Unable to create NuvlaBox overlay net {utils.nuvlabox_overlay_shared_net}: {str(e)}')
-                return
-
-        self.log.info(f'Launching global network propagation service {global_service_name}')
+        self.log.info(f'Launching global network propagation service {utils.overlay_network_service}')
         self.docker_client.services.create('alpine',
                                            command=f"echo {self.node}",
                                            container_labels=labels,
                                            labels=labels,
                                            mode="global",
-                                           name=global_service_name,
-                                           networks=[utils.nuvlabox_overlay_shared_net],
+                                           name=utils.overlay_network_service,
+                                           networks=[net_name],
                                            restart_policy=restart_policy,
                                            stop_grace_period=3,
                                            )
+
+        return True
 
     def keep_datagateway_containers_up(self):
         """ Restarts the datagateway containers, if any. These are identified by their labels
@@ -550,6 +625,7 @@ class Supervise():
                 # then it means the peripheral is gone, and the DG container was not removed
                 self.log.warning(f"Found old DG container {dg_container.name}. Trying to disable it")
                 try:
+                    # TODO: this is only considering the mjpg streamer. It is not generic!
                     r = requests.post("https://management-api:5001/api/data-source-mjpg/disable",
                                       verify=False,
                                       cert=(utils.cert_file, utils.key_file),
@@ -568,7 +644,7 @@ class Supervise():
             if dg_container.status.lower() not in ["running", "paused"]:
                 self.log.warning(f'The data-gateway container {dg_container.name} is down. Forcing its restart...')
 
-            try:
-                dg_container.start()
-            except Exception as e:
-                self.log.exception(f'Unable to force restart {dg_container.name}. Reason: {str(e)}')
+                try:
+                    dg_container.start()
+                except Exception as e:
+                    self.log.exception(f'Unable to force restart {dg_container.name}. Reason: {str(e)}')

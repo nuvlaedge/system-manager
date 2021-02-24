@@ -32,8 +32,7 @@ class GracefulShutdown:
         signal.signal(signal.SIGINT, self.exit_gracefully)
         signal.signal(signal.SIGTERM, self.exit_gracefully)
 
-    @staticmethod
-    def exit_gracefully(self,signum, frame):
+    def exit_gracefully(self, signum, frame):
         log.info(f'Starting on-stop graceful shutdown of the NuvlaBox...')
         self_sup.launch_nuvlabox_on_stop()
 
@@ -101,12 +100,6 @@ while True:
         log.info("Rotating NuvlaBox certificates...")
         self_sup.request_rotate_certificates()
 
-    # COPING WITH CORNER CASE ISSUES 1
-    # https://github.com/docker/for-linux/issues/293
-    # this bug causes Traefik (datagateway) to go into a exited state, regardless of the Docker restart policy
-    # it can happen because of abrupt system reboots, broken bind-mounts, or even Docker daemon error
-    # This check serves as an external boost for the datagateway to recover when in such situations
-    # This procedure will also ensure the DG is connected to the overlay network
     self_sup.monitor_data_gateway()
 
     # COPING WITH CORNER CASE ISSUES 2
