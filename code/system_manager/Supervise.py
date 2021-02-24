@@ -4,14 +4,15 @@
 """ Contains the supervising class for all NuvlaBox Engine components """
 
 import docker
-import logging
 import json
 import time
 import os
 import glob
 import OpenSSL
 import requests
+import socket
 from datetime import datetime
+from system_manager.common.logging import logging
 from system_manager.common import utils
 
 
@@ -30,6 +31,7 @@ class Supervise():
         self.system_usages = {}
         self.i_am_leader = self.i_am_manager = self.is_swarm_enabled = self.node = None
         self.classify_this_node()
+        self.on_stop_docker_image = self.infer_on_stop_docker_image()
 
     @staticmethod
     def printer(content, file):
@@ -47,6 +49,70 @@ class Supervise():
 
         with open("{}/{}".format(utils.html_templates, file)) as r:
             return r.read()
+
+    def launch_nuvlabox_on_stop(self):
+        """
+        Launches the on-stop graceful shutdown
+
+        :return:
+        """
+
+        error_msg = 'Cannot launch NuvlaBox On-Stop graceful shutdown. ' \
+                    'If decommissioning, container resources might be left behind'
+
+        if not self.on_stop_docker_image:
+            self.on_stop_docker_image = self.infer_on_stop_docker_image()
+            if not self.on_stop_docker_image:
+                self.log.warning(f'{error_msg}: Docker image not found for NuvlaBox On-Stop service')
+                return
+
+        try:
+            myself = self.docker_client.containers.get(socket.gethostname())
+            myself_labels = myself.labels
+        except docker.errors.NotFound:
+            self.log.warning(f'Cannot find this container by hostname: {socket.gethostname()}')
+            myself_labels = {}
+
+        project_name = myself_labels.get('com.docker.compose.project')
+
+        self.docker_client.containers.run(self.on_stop_docker_image,
+                                          environment=[f'PROJECT_NAME={project_name}'],
+                                          volumes={
+                                              '/var/run/docker.sock': {
+                                                  'bind': '/var/run/docker.sock',
+                                                  'mode': 'ro'
+                                              }
+                                          },
+                                          detach=True,
+                                          remove=True)
+
+    def infer_on_stop_docker_image(self):
+        """
+        On stop, the SM launches the NuvlaBox cleaner, called on-stop, and which is also launched in paused mode
+        at the beginning of the NB lifetime.
+
+        Here, we find that service and infer its Docker image for later usage
+
+        :return: image name (str)
+        """
+
+        on_stop_container_name = "nuvlabox-on-stop"
+
+        try:
+            container = self.docker_client.containers.get(on_stop_container_name)
+        except docker.errors.NotFound:
+            return None
+        except Exception as e:
+            self.log.error(f"Unable to search for container {on_stop_container_name}. Reason: {str(e)}")
+            return None
+
+        try:
+            if container.status.lower() == "paused":
+                return container.attrs['Config']['Image']
+        except (AttributeError, KeyError) as e:
+            self.log.error(f'Unable to infer Docker image for {on_stop_container_name}: {str(e)}')
+
+        return None
 
     def classify_this_node(self):
         dinfo = self.get_docker_info()
@@ -375,7 +441,7 @@ class Supervise():
                 # DG is not connected to it
                 # let's connect it
                 self.log.info(f'Connecting {dg_container_name} to {utils.nuvlabox_overlay_shared_net}')
-                nb_overlay_net.connect(dg_container_name)
+                nb_overlay_net.connect(dg_container_name, aliases=["datagateway", "data-gateway"])
 
             if utils.nuvlabox_overlay_shared_net not in agent_networks:
                 # Agent is not connected to it

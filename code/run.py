@@ -9,11 +9,11 @@ Arguments:
 
 """
 import requests
-import time
 import sys
 import os
 import subprocess
 import system_manager.Requirements as MinReq
+import signal
 from multiprocessing import Process
 from system_manager.common import utils
 from system_manager.common.logging import logging
@@ -24,6 +24,21 @@ __email__ = "support@sixsq.com"
 
 log = logging.getLogger(__name__)
 self_sup = Supervise()
+
+
+class GracefulShutdown:
+
+    def __init__(self):
+        signal.signal(signal.SIGINT, self.exit_gracefully)
+        signal.signal(signal.SIGTERM, self.exit_gracefully)
+
+    @staticmethod
+    def exit_gracefully(self,signum, frame):
+        log.info(f'Starting on-stop graceful shutdown of the NuvlaBox...')
+        self_sup.launch_nuvlabox_on_stop()
+
+
+on_stop = GracefulShutdown()
 
 
 def run_requirements_check():
