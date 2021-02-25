@@ -18,6 +18,7 @@ base_label = "nuvlabox.component=True"
 
 nuvlabox_shared_net = 'nuvlabox-shared-network'
 overlay_network_service = 'nuvlabox-ack'
+data_gateway_traefik_image = "traefik:2.3.5"
 
 docker_stats_html_file = "docker_stats.html"
 html_templates = "templates"

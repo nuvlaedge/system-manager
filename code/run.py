@@ -100,7 +100,7 @@ while True:
         log.info("Rotating NuvlaBox certificates...")
         self_sup.request_rotate_certificates()
 
-    self_sup.monitor_data_gateway()
+    self_sup.manage_data_gateway()
 
     # COPING WITH CORNER CASE ISSUES 2
     # https://github.com/docker/compose/issues/6385
