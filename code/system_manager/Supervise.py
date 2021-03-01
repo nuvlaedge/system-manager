@@ -16,7 +16,11 @@ from system_manager.common.logging import logging
 from system_manager.common import utils
 
 
-class Supervise():
+class ClusterNodeCannotManageDG(Exception):
+    pass
+
+
+class Supervise(object):
     """ The Supervise class contains all the methods and
     definitions for making sure the NuvlaBox Engine is running smoothly,
     including all methods for dealing with system disruptions and
@@ -29,10 +33,11 @@ class Supervise():
         self.docker_client = docker.from_env()
         self.log = logging.getLogger(__name__)
         self.system_usages = {}
-        self.i_am_leader = self.i_am_manager = self.is_swarm_enabled = self.node = None
-        self.classify_this_node()
         self.on_stop_docker_image = self.infer_on_stop_docker_image()
+        self.data_gateway_image = os.getenv('NUVLABOX_DATA_GATEWAY_IMAGE', 'eclipse-mosquitto:1.6.12')
         self.data_gateway_object = None
+        self.data_gateway_name = 'data-gateway'
+        self.i_am_manager = self.is_swarm_enabled = self.node = None
 
     @staticmethod
     def printer(content, file):
@@ -116,36 +121,29 @@ class Supervise():
         return None
 
     def classify_this_node(self):
-        dinfo = self.get_docker_info()
-        swarm_info = dinfo.get('Swarm', {})
+        swarm_info = self.get_docker_info().get('Swarm', {})
 
         # is it running in Swarm mode?
         node_id = swarm_info.get('NodeID')
         # might have a Node ID but still, LocalNodeState might be inactive
         local_node_state = swarm_info.get('LocalNodeState', 'inactive')
         if not node_id or local_node_state.lower() == "inactive":
-            self.i_am_leader = self.i_am_manager = self.is_swarm_enabled = False
+            self.i_am_manager = self.is_swarm_enabled = False
             return
 
         # if it got here, there Swarm is active
-        active_swarm = True
+        self.is_swarm_enabled = True
 
         remote_managers = [rm.get('NodeID') for rm in swarm_info.get('RemoteManagers', [])]
-        i_am_manager = True if node_id in remote_managers else False
+        self.i_am_manager = True if node_id in remote_managers else False
 
-        if not i_am_manager:
-            self.i_am_leader = False
-            self.i_am_manager = i_am_manager
-            self.is_swarm_enabled = active_swarm
-            return
-
-        # if it got here, then this node is a manager
-        self.node = self.docker_client.nodes.get(node_id)
-        i_am_leader = True if self.node.attrs['ManagerStatus'].get('Leader') else False
-
-        self.i_am_leader = i_am_leader
-        self.i_am_manager = i_am_manager
-        self.is_swarm_enabled = active_swarm
+        if self.i_am_manager:
+            self.node = self.docker_client.nodes.get(node_id)
+            if utils.node_label_key not in self.node.attrs.get('Spec', {}).get('Labels', {}).keys():
+                node_spec = {
+                    'Labels': {utils.node_label_key: 'True'}
+                }
+                self.node.update(node_spec)
 
     def get_nuvlabox_status(self):
         """ Re-uses the consumption metrics from NuvlaBox Agent """
@@ -393,111 +391,98 @@ class Supervise():
             except docker.errors.NotFound:
                 self.log.exception(f"Container {compute_api_container} is not running. Nothing to do...")
 
-    def launch_data_gateway(self, router_name: str) -> bool:
+    def launch_data_gateway(self, name: str) -> bool:
         """
         Starts the DG services/containers, depending on the mode
 
-        :param router_name: name of the routing component
+        :param name: name of the dg component
 
         :return: bool
         """
 
-        # if it doesn't exist, it must be created
-        # but before create the DG, its network must exist
-        if not self.find_network(utils.nuvlabox_shared_net):
-            # network doesn't exist, so let's create it as well
-            if not self.setup_network(utils.nuvlabox_shared_net):
-                # without a network we cannot setup the DG
-                return False
-
         # At this stage, the DG network is setup
-        # let's create the DG routing component
+        # let's create the DG component
         labels = {
             "nuvlabox.component": "True",
             "nuvlabox.deployment": "production",
             "nuvlabox.data-gateway": "True"
         }
         try:
-            if self.is_swarm_enabled:
-                self.docker_client.services.create(utils.data_gateway_traefik_image,
-                                                   name=router_name,
-                                                   hostname=router_name,
+            cmd = "sh -c 'sleep 10 && /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf'"
+            if self.is_swarm_enabled and self.i_am_manager:
+                self.docker_client.services.create(self.data_gateway_image,
+                                                   name=name,
+                                                   hostname=name,
                                                    labels=labels,
+                                                   init=True,
                                                    container_labels=labels,
-                                                   mounts=['/var/run/docker.sock:/var/run/docker.sock:ro'],
                                                    networks=[utils.nuvlabox_shared_net],
                                                    constraints=[
                                                        'node.role==manager',
-                                                       'node.labels.nuvlabox==True'
+                                                       f'{utils.node_label_key}==True'
                                                    ],
-                                                   command=[
-                                                       '--entrypoints.mqtt.address=:1883',
-                                                       '--entrypoints.web.address=:80',
-                                                       '--providers.docker=true',
-                                                       '--providers.docker.exposedbydefault=false',
-                                                       f'--providers.docker.network={utils.nuvlabox_shared_net}'
-                                                   ]
+                                                   command=cmd
                                                    )
-            else:
-                self.docker_client.containers.run(utils.data_gateway_traefik_image,
-                                                  name=router_name,
-                                                  hostname=router_name,
+            elif not self.is_swarm_enabled:
+                # Docker standalone mode
+                self.docker_client.containers.run(self.data_gateway_image,
+                                                  name=name,
+                                                  hostname=name,
+                                                  init=True,
                                                   detach=True,
                                                   labels=labels,
                                                   restart={"Name": "always"},
                                                   oom_score_adj=-900,
-                                                  volumes={
-                                                      '/var/run/docker.sock': {
-                                                          'bind': '/var/run/docker.sock',
-                                                          'mode': 'ro'
-                                                      }
-                                                  },
                                                   network=utils.nuvlabox_shared_net,
-                                                  command=[
-                                                      '--entrypoints.mqtt.address=:1883',
-                                                      '--entrypoints.web.address=:80',
-                                                      '--providers.docker=true',
-                                                      '--providers.docker.exposedbydefault=false',
-                                                      f'--providers.docker.network={utils.nuvlabox_shared_net}'
-                                                  ]
+                                                  command=cmd
                                                   )
+            else:
+                # Cannot launch DG as a Swarm worker
+                return False
         except docker.errors.APIError as e:
             try:
                 if '409' in str(e):
                     # already exists
                     self.log.warning(f'Despite the request to launch the Data Gateway, '
-                                     f'{router_name} seems to exist already. Forcing its restart just in case')
-                    if self.is_swarm_enabled:
-                        self.docker_client.services.get(router_name).force_update()
+                                     f'{name} seems to exist already. Forcing its restart just in case')
+                    if self.is_swarm_enabled and self.i_am_manager:
+                        self.docker_client.services.get(name).force_update()
                     else:
-                        self.docker_client.containers.get(router_name).restart()
+                        self.docker_client.containers.get(name).restart()
 
                     return True
                 else:
                     raise e
             except Exception as e:
-                self.log.error(f'Unable to launch Data Gateway router {router_name}: {str(e)}')
+                self.log.error(f'Unable to launch Data Gateway router {name}: {str(e)}')
                 return False
 
-    def i_am_hosting_dg(self) -> bool:
+    def find_nuvlabox_agent(self) -> str or None:
         """
-        Simply infers whether the DG container is running on this node or not
+        Connect the NB agent to the DG network
 
-        :return: bool
+        :return: agent container name or None
         """
 
-        if self.is_swarm_enabled and self.i_am_manager:
-            dg_running_node = self.data_gateway_object.tasks()[0].get('NodeID')
-            if dg_running_node == self.node.id:
-                return True
-            
-            return False
-        
-        if not self.is_swarm_enabled:
-            
-                
+        try:
+            agent_container_id = requests.get('http://agent/api/agent-container-id')
+        except requests.exceptions.ConnectionError:
+            self.log.warning('Agent API is not ready yet. Trying again later')
+            return None
 
+        agent_container_id.raise_for_status()
 
+        try:
+            agent_container = self.docker_client.containers.get(agent_container_id.json())
+        except docker.errors.NotFound as e:
+            self.log.warning(f'Setting operational status to {utils.status_degraded}: {str(e)}')
+            utils.set_operational_status(utils.status_degraded)
+            return None
+        except:
+            # really nothing to do
+            return None
+
+        return agent_container.name
 
     def manage_data_gateway(self):
         """ Sets the DG service.
@@ -508,109 +493,54 @@ class Supervise():
         :return:
         """
 
-        dg_name = 'data-gateway'
-        mqtt_broker_name = 'nb-mosquitto'
-
-        # Agent also needs to be connected to the data-gateway, so that it can broadcast telemetry via MQTT
-        try:
-            agent_container_id = requests.get('http://agent/api/agent-container-id')
-        except requests.exceptions.ConnectionError:
-            self.log.warning('Agent API is not ready yet. Trying again later')
+        # ## 1: if the DG network already exists, then chances are that the DG has already been deployed
+        dg_network = self.find_network(utils.nuvlabox_shared_net)
+        if not dg_network:
+            # network doesn't exist, so let's create it as well
+            self.setup_network(utils.nuvlabox_shared_net)
+            # resume the DG mgmt activities on the next cycle
             return
 
-        agent_container_id.raise_for_status()
-
-        degraded = 'DEGRADED'
-
+        # ## 2: DG network exists, but does the DG?
         # check the existence of the DG
         # this function sets self.data_gateway_object
-        self.find_data_gateway(dg_name)
-
-        if not self.data_gateway_object:
-            # DG doesn't exist yet
-            if not self.launch_data_gateway(dg_name):
-                utils.set_operational_status(degraded)
-
-            # NOTE: resume on the next cycle
-            return
-        else:
-            # is it healthy?
-            # COPING WITH CORNER CASE ISSUES 1
-            # https://github.com/docker/for-linux/issues/293
-            # this bug causes Traefik (datagateway) to go into a exited state, regardless of the Docker restart policy
-            # it can happen because of abrupt system reboots, broken bind-mounts, or even Docker daemon error
-            # This check serves as an external boost for the datagateway to recover when in such situations
-            # this is only a problem in Docker mode
-            if not self.is_swarm_enabled:
-                if self.data_gateway_object.status.lower() not in ["running", "paused"]:
-                    self.log.warning(f'{self.data_gateway_object.name} is down and not restarting on its own. '
-                                     f'Forcing the restart...')
-                    try:
-                        self.data_gateway_object.start()
-                    except:
-                        self.log.exception(f'Unable to start {self.data_gateway_object.name}. '
-                                           f'Setting operational status to {degraded}')
-                        utils.set_operational_status(degraded)
-
-                    # NOTE: resume on the next cycle
-                    return
-
-        # if we got here, then the DG exists and is healthy
-
-        # let's start by flagging the MQTT broker that
-        # we only do this, if the actual DG router container is running on the same machine as we are
-        if self.i_am_hosting_dg():
-
         try:
-            agent_container = self.docker_client.containers.get(agent_container_id.json())
-        except docker.errors.NotFound as e:
-            self.log.warning(f'Setting operational status to {degraded}: {str(e)}')
-            utils.set_operational_status(degraded)
-            return
-        except:
-            # really nothing to do
-            return
-
-        if datagateway_container.status.lower() not in ["running", "paused"]:
-            self.log.warning(f'{dg_container_name} is down and not restarting on its own. Forcing the restart...')
-            try:
-                datagateway_container.start()
-            except:
-                self.log.exception(f'Unable to force restart {dg_container_name}. Setting operational status to {degraded}')
-                utils.set_operational_status(degraded)
-
-            return
+            self.find_data_gateway(self.data_gateway_name)
+        except ClusterNodeCannotManageDG:
+            # ## 2.1: this means this node is a Swarm worker. It can't manage the DG
+            pass
         else:
-            utils.set_operational_status('OPERATIONAL')
+            # ## 2.2: at this stage, this is either a Swarm manager or a standalone Docker node
+            if not self.data_gateway_object:
+                if not self.launch_data_gateway(self.data_gateway_name):
+                    utils.set_operational_status(utils.status_degraded)
 
-        # at this point, the DG should be up and running
-        nb_overlay_net = self.find_nuvlabox_shared_network()
-        if nb_overlay_net:
-            dg_networks = datagateway_container.attrs['NetworkSettings'].get('Networks', {}).keys()
-            agent_networks = agent_container.attrs['NetworkSettings'].get('Networks', {}).keys()
-            if utils.nuvlabox_overlay_shared_net not in dg_networks:
-                # DG is not connected to it
-                # let's connect it
-                self.log.info(f'Connecting {dg_container_name} to {utils.nuvlabox_overlay_shared_net}')
-                nb_overlay_net.connect(dg_container_name, aliases=["datagateway", "data-gateway"])
+                # NOTE: resume on the next cycle
+                return
 
-            if utils.nuvlabox_overlay_shared_net not in agent_networks:
-                # Agent is not connected to it
-                # let's connect it
-                self.log.info(f'Connecting Agent {agent_container_id.json()} to {utils.nuvlabox_overlay_shared_net}')
-                nb_overlay_net.connect(agent_container_id.json())
+        # ## 3: finally, connect this node's Agent container to DG
+        agent_container_name = self.find_nuvlabox_agent()
+        if agent_container_name:
+            dg_network.connect(agent_container_name)
+        else:
+            self.log.error(f'Unable to connect NuvlaBox Agent to {utils.nuvlabox_shared_net} network')
 
     def find_data_gateway(self, name: str) -> bool:
         try:
-            if self.is_swarm_enabled:
-                dg = self.docker_client.services.get(name)
+            if self.is_swarm_enabled and self.i_am_manager:
+                # in swarm
+                self.data_gateway_object = self.docker_client.services.get(name)
+            elif not self.is_swarm_enabled and not self.i_am_manager:
+                # in single Docker machine
+                self.data_gateway_object = self.docker_client.containers.get(name)
             else:
-                dg = self.docker_client.containers.get(name)
+                # Swarm active, but this is a worker, nothing to do
+                self.data_gateway_object = None
+                raise ClusterNodeCannotManageDG()
 
-            self.data_gateway_object = dg
             return True
         except (docker.errors.NotFound, docker.errors.APIError) as e:
-            self.log.error(f'Unable to look up for Data Gateway {name}: {str(e)}')
+            self.log.warning(f'Unable to look up for Data Gateway {name}: {str(e)}')
             self.data_gateway_object = None
             return False
 
@@ -643,16 +573,20 @@ class Supervise():
         }
         try:
             if not self.is_swarm_enabled:
+                # standalone Docker nodes create bridge network
                 self.docker_client.networks.create(net_name,
                                                    labels=labels)
                 return True
-            else:
-                # overlay then
+            elif self.is_swarm_enabled and self.i_am_manager:
+                # Swarm managers create overlay network
                 self.docker_client.networks.create(net_name,
                                                    driver="overlay",
                                                    attachable=True,
                                                    options={"encrypted": "True"},
                                                    labels=labels)
+            else:
+                # Swarm worker can't do anything, just wait
+                return False
         except docker.errors.APIError as e:
             if '409' in str(e):
                 # already exists
@@ -696,7 +630,7 @@ class Supervise():
 
         self.log.info(f'Launching global network propagation service {utils.overlay_network_service}')
         self.docker_client.services.create('alpine',
-                                           command=f"echo {self.node}",
+                                           command=f"echo {self.docker_client.info()}",
                                            container_labels=labels,
                                            labels=labels,
                                            mode="global",

@@ -15,13 +15,16 @@ key_file = f"{data_volume}/key.pem"
 nuvlabox_peripherals_folder = "{}/.peripherals".format(data_volume)
 operational_status_file = f'{data_volume}/.status'
 base_label = "nuvlabox.component=True"
+node_label_key = "node.labels.nuvlabox"
 
 nuvlabox_shared_net = 'nuvlabox-shared-network'
 overlay_network_service = 'nuvlabox-ack'
-data_gateway_traefik_image = "traefik:2.3.5"
 
 docker_stats_html_file = "docker_stats.html"
 html_templates = "templates"
+
+status_degraded = 'DEGRADED'
+status_operational = 'OPERATIONAL'
 
 tls_sync_file = f"{data_volume}/.tls"
 
