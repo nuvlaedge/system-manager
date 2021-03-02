@@ -110,10 +110,8 @@ class SoftwareRequirements(object):
                          .format(docker_major_version, self.minimum_requirements["docker_version"]))
             return False
         else:
-            if not self.check_active_swarm():
-                self.log.error("The minimum requirements for your Docker setup are not met!")
-                return False
-            else:
+            if self.check_active_swarm():
+                self.log.info("Running in Swarm mode")
                 return True
 
     def check_active_swarm(self):
@@ -121,18 +119,7 @@ class SoftwareRequirements(object):
 
         if not self.docker_client.swarm.attrs:
             self.log.error("Your device is not running in Swarm mode! "
-                            "To install the NuvlaBox Engine, please first run 'docker swarm init'")
-            return False
-        elif not self.check_is_swarm_manager():
-            self.log.error("Your device is not a Swarm manager! "
-                          "The NuvlaBox Engine can only run in Swarm Manager nodes")
+                           "To install the NuvlaBox Engine, please first run 'docker swarm init'")
             return False
         else:
             return True
-
-    def check_is_swarm_manager(self):
-        """ Checks that the device is a Swarm manager """
-
-        return self.docker_client.info()["Swarm"]["NodeID"] in \
-            [manager["NodeID"] for manager in self.docker_client.info()["Swarm"]["RemoteManagers"]]
-
