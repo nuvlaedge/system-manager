@@ -25,6 +25,7 @@ html_templates = "templates"
 
 status_degraded = 'DEGRADED'
 status_operational = 'OPERATIONAL'
+status_unknown = 'UNKNOWN'
 
 tls_sync_file = f"{data_volume}/.tls"
 

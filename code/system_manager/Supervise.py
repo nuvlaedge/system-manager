@@ -20,6 +20,14 @@ class ClusterNodeCannotManageDG(Exception):
     pass
 
 
+def cluster_workers_cannot_manage(func):
+    def wrapper(self):
+        if self.is_swarm_enabled and not self.i_am_manager:
+            raise ClusterNodeCannotManageDG()
+        return func(self)
+    return wrapper
+
+
 class Supervise(object):
     """ The Supervise class contains all the methods and
     definitions for making sure the NuvlaBox Engine is running smoothly,
@@ -38,6 +46,7 @@ class Supervise(object):
         self.data_gateway_object = None
         self.data_gateway_name = 'data-gateway'
         self.i_am_manager = self.is_swarm_enabled = self.node = None
+        self.operational_status = []
 
     @staticmethod
     def printer(content, file):
@@ -148,6 +157,7 @@ class Supervise(object):
             if utils.node_label_key not in node_labels.keys() and isinstance(node_spec, dict):
                 node_labels[utils.node_label_key] = 'True'
                 node_spec['Labels'] = node_labels
+                self.log.info(f'Updating this node ({node_id}) with label {utils.node_label_key}')
                 self.node.update(node_spec)
 
     def get_nuvlabox_status(self):
@@ -396,6 +406,7 @@ class Supervise(object):
             except docker.errors.NotFound:
                 self.log.exception(f"Container {compute_api_container} is not running. Nothing to do...")
 
+    @cluster_workers_cannot_manage
     def launch_data_gateway(self, name: str) -> bool:
         """
         Starts the DG services/containers, depending on the mode
@@ -441,9 +452,6 @@ class Supervise(object):
                                                   network=utils.nuvlabox_shared_net,
                                                   command=cmd
                                                   )
-            else:
-                # Cannot launch DG as a Swarm worker
-                return False
         except docker.errors.APIError as e:
             try:
                 if '409' in str(e):
@@ -462,23 +470,23 @@ class Supervise(object):
                 self.log.error(f'Unable to launch Data Gateway router {name}: {str(e)}')
                 return False
 
-    def find_nuvlabox_agent(self) -> str or None:
+    def find_nuvlabox_agent(self) -> object or None:
         """
         Connect the NB agent to the DG network
 
-        :return: agent container ID or None
+        :return: agent container object or None
         """
 
         try:
             agent_container_id = requests.get('http://agent/api/agent-container-id')
         except requests.exceptions.ConnectionError:
             self.log.warning('Agent API is not ready yet. Trying again later')
-            utils.set_operational_status(utils.status_degraded)
+            self.operational_status.append(utils.status_degraded)
             return None
 
         agent_container_id.raise_for_status()
 
-        return agent_container_id.json()
+        return self.docker_client.containers.get(agent_container_id.json())
 
     def manage_data_gateway(self):
         """ Sets the DG service.
@@ -493,13 +501,25 @@ class Supervise(object):
         dg_network = self.find_network(utils.nuvlabox_shared_net)
         if not dg_network:
             # network doesn't exist, so let's create it as well
-            self.setup_network(utils.nuvlabox_shared_net)
+            try:
+                self.setup_network(utils.nuvlabox_shared_net)
+            except ClusterNodeCannotManageDG:
+                # this node can't setup networks. Do nothing
+                pass
             # resume the DG mgmt activities on the next cycle
             return
+        else:
+            # make sure the network driver makes sense, to avoid having a bridge network on a Swarm node
+            dg_net_driver = dg_network.attrs.get('Driver')
+            if dg_net_driver.lower() == 'bridge' and self.is_swarm_enabled:
+                self.destroy_network(dg_network)
+                # reset cycle cause network needs to be recreated
+                return
 
         # ## 2: DG network exists, but does the DG?
         # check the existence of the DG
         # this function sets self.data_gateway_object
+        self.data_gateway_object = None
         try:
             self.find_data_gateway(self.data_gateway_name)
         except ClusterNodeCannotManageDG:
@@ -508,19 +528,34 @@ class Supervise(object):
         else:
             # ## 2.2: at this stage, this is either a Swarm manager or a standalone Docker node
             if not self.data_gateway_object:
-                if not self.launch_data_gateway(self.data_gateway_name):
-                    utils.set_operational_status(utils.status_degraded)
+                launched_dg = False
+                self.log.info(f'Data Gateway not found. Launching it')
+                try:
+                    launched_dg = self.launch_data_gateway(self.data_gateway_name)
+                except ClusterNodeCannotManageDG:
+                    # this isn't actually needed, cause we should never get here if ClusterNodeCannotManageDG
+                    # due to the above catch...but it doesn't harm, just in case there's a sudden change in the cluster
+                    pass
+                finally:
+                    if not launched_dg:
+                        self.operational_status.append(utils.status_degraded)
 
                 # NOTE: resume on the next cycle
                 return
 
         # ## 3: finally, connect this node's Agent container to DG
-        agent_container_name = self.find_nuvlabox_agent()
-        if agent_container_name:
-            dg_network.connect(agent_container_name)
+        agent_container = self.find_nuvlabox_agent()
+        if agent_container:
+            if dg_network.name not in agent_container.attrs.get('NetworkSettings', {}).get('Networks', {}).keys():
+                self.log.info(f'Connecting NuvlaBox Agent ({agent_container.name}) to network {dg_network.name}')
+                try:
+                    dg_network.connect(agent_container.id)
+                except Exception as e:
+                    self.log.error(f'Error while connecting NuvlaBox Agent to Data Gateway network: {str(e)}')
         else:
-            self.log.error(f'Unable to connect NuvlaBox Agent to {utils.nuvlabox_shared_net} network')
+            self.operational_status.append(utils.status_degraded)
 
+    @cluster_workers_cannot_manage
     def find_data_gateway(self, name: str) -> bool:
         try:
             if self.is_swarm_enabled and self.i_am_manager:
@@ -529,14 +564,10 @@ class Supervise(object):
             elif not self.is_swarm_enabled and not self.i_am_manager:
                 # in single Docker machine
                 self.data_gateway_object = self.docker_client.containers.get(name)
-            else:
-                # Swarm active, but this is a worker, nothing to do
-                self.data_gateway_object = None
-                raise ClusterNodeCannotManageDG()
 
             return True
         except (docker.errors.NotFound, docker.errors.APIError) as e:
-            self.log.warning(f'Unable to look up for Data Gateway {name}: {str(e)}')
+            self.log.warning(f'Unable to look up Data Gateway component {name}: {str(e)}')
             self.data_gateway_object = None
             return False
 
@@ -554,6 +585,30 @@ class Supervise(object):
 
             return None
 
+    def destroy_network(self, network: object):
+        """
+        Deletes a network locally by disconnecting it from any container in use, and removing it
+
+        :param network: Docker network object
+        :return:
+        """
+        self.log.warning(f'About to destroy network {network.name}')
+
+        containers_attached = network.attrs.get('Containers')
+
+        if containers_attached:
+            for container_id in containers_attached.keys():
+                try:
+                    network.disconnect(container_id)
+                except docker.errors.NotFound as e:
+                    self.log.debug(f'Unable to disconnect container {container_id} from net {network.name}: {str(e)}')
+                    continue
+
+                self.log.warning(f'Disconnected container {container_id} from network {network.name}')
+
+        network.remove()
+
+    @cluster_workers_cannot_manage
     def setup_network(self, net_name: str) -> bool:
         """
         Creates a Docker network.
@@ -580,9 +635,6 @@ class Supervise(object):
                                                    attachable=True,
                                                    options={"encrypted": "True"},
                                                    labels=labels)
-            else:
-                # Swarm worker can't do anything, just wait
-                return False
         except docker.errors.APIError as e:
             if '409' in str(e):
                 # already exists

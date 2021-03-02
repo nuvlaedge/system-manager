@@ -1,3 +1,3 @@
-docker==3.7.2
+docker
 Flask==1.0.0
 gunicorn

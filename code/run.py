@@ -86,6 +86,7 @@ def docker_stats_streaming():
 
 
 while True:
+    self_sup.operational_status = []
     if not api or not api.pid:
         api = subprocess.Popen(api_launch.split())
 
@@ -113,4 +114,11 @@ while True:
     p.join()
     if p.exitcode > 0:
         raise Exception("Docker stats streaming failed. Need to restart System Manager!")
+
+    if utils.status_degraded in self_sup.operational_status:
+        utils.set_operational_status(utils.status_degraded)
+    elif all([x == utils.status_operational for x in self_sup.operational_status]) or not self_sup.operational_status:
+        utils.set_operational_status(utils.status_operational)
+    else:
+        utils.set_operational_status(utils.status_unknown)
 
