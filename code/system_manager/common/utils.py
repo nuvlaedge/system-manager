@@ -15,7 +15,7 @@ key_file = f"{data_volume}/key.pem"
 nuvlabox_peripherals_folder = "{}/.peripherals".format(data_volume)
 operational_status_file = f'{data_volume}/.status'
 base_label = "nuvlabox.component=True"
-node_label_key = "node.labels.nuvlabox"
+node_label_key = "nuvlabox"
 
 nuvlabox_shared_net = 'nuvlabox-shared-network'
 overlay_network_service = 'nuvlabox-ack'

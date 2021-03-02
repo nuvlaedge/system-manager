@@ -419,7 +419,7 @@ class Supervise(object):
                                                    networks=[utils.nuvlabox_shared_net],
                                                    constraints=[
                                                        'node.role==manager',
-                                                       f'{utils.node_label_key}==True'
+                                                       f'node.labels.{utils.node_label_key}==True'
                                                    ],
                                                    command=cmd
                                                    )
@@ -461,28 +461,19 @@ class Supervise(object):
         """
         Connect the NB agent to the DG network
 
-        :return: agent container name or None
+        :return: agent container ID or None
         """
 
         try:
             agent_container_id = requests.get('http://agent/api/agent-container-id')
         except requests.exceptions.ConnectionError:
             self.log.warning('Agent API is not ready yet. Trying again later')
+            utils.set_operational_status(utils.status_degraded)
             return None
 
         agent_container_id.raise_for_status()
 
-        try:
-            agent_container = self.docker_client.containers.get(agent_container_id.json())
-        except docker.errors.NotFound as e:
-            self.log.warning(f'Setting operational status to {utils.status_degraded}: {str(e)}')
-            utils.set_operational_status(utils.status_degraded)
-            return None
-        except:
-            # really nothing to do
-            return None
-
-        return agent_container.name
+        return agent_container_id.json()
 
     def manage_data_gateway(self):
         """ Sets the DG service.
