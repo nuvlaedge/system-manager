@@ -21,7 +21,7 @@ class ClusterNodeCannotManageDG(Exception):
 
 
 def cluster_workers_cannot_manage(func):
-    def wrapper(self):
+    def wrapper(self, *args):
         if self.is_swarm_enabled and not self.i_am_manager:
             raise ClusterNodeCannotManageDG()
         return func(self)
