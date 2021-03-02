@@ -139,10 +139,15 @@ class Supervise(object):
 
         if self.i_am_manager:
             self.node = self.docker_client.nodes.get(node_id)
-            if utils.node_label_key not in self.node.attrs.get('Spec', {}).get('Labels', {}).keys():
-                node_spec = {
-                    'Labels': {utils.node_label_key: 'True'}
-                }
+            try:
+                node_spec = self.node.attrs['Spec']
+            except KeyError as e:
+                self.log.error(f'Cannot get node Spec for {node_id}: {str(e)}')
+                return
+            node_labels = node_spec.get('Labels', {})
+            if utils.node_label_key not in node_labels.keys() and isinstance(node_spec, dict):
+                node_labels[utils.node_label_key] = 'True'
+                node_spec['Labels'] = node_labels
                 self.node.update(node_spec)
 
     def get_nuvlabox_status(self):
