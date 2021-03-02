@@ -9,8 +9,10 @@ import time
 import os
 import glob
 import OpenSSL
+import random
 import requests
 import socket
+import string
 from datetime import datetime
 from system_manager.common.logging import logging
 from system_manager.common import utils
@@ -24,7 +26,7 @@ def cluster_workers_cannot_manage(func):
     def wrapper(self, *args):
         if self.is_swarm_enabled and not self.i_am_manager:
             raise ClusterNodeCannotManageDG()
-        return func(self)
+        return func(self, *args)
     return wrapper
 
 
@@ -90,7 +92,12 @@ class Supervise(object):
 
         project_name = myself_labels.get('com.docker.compose.project')
 
+        random_identifier = ''.join(random.choices(string.ascii_uppercase, k=5))
+        now = datetime.strftime(datetime.utcnow(), '%d-%m-%Y_%H%M%S')
+        on_stop_container_name = f"nuvlabox-on-stop-{random_identifier}-{now}"
+
         self.docker_client.containers.run(self.on_stop_docker_image,
+                                          name=on_stop_container_name,
                                           environment=[f'PROJECT_NAME={project_name}'],
                                           volumes={
                                               '/var/run/docker.sock': {
@@ -98,8 +105,7 @@ class Supervise(object):
                                                   'mode': 'ro'
                                               }
                                           },
-                                          detach=True,
-                                          remove=True)
+                                          detach=True)
 
     def infer_on_stop_docker_image(self):
         """
@@ -352,7 +358,7 @@ class Supervise(object):
                     break
 
         if errors:
-            self.log.warning(f'Failed to get some container stats. List (container:metric:error): {", ".join(errors)}')
+            self.log.debug(f'Failed to get some container stats. List (container:metric:error): {", ".join(errors)}')
 
         stats += ' </tbody>' \
                  '</table>'
@@ -622,6 +628,7 @@ class Supervise(object):
             "nuvlabox.network": "True",
             "nuvlabox.data-gateway": "True"
         }
+        self.log.info(f'Creating Data Gateway network {net_name}')
         try:
             if not self.is_swarm_enabled:
                 # standalone Docker nodes create bridge network
