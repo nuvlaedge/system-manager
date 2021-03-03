@@ -510,10 +510,12 @@ class Supervise(object):
             try:
                 self.setup_network(utils.nuvlabox_shared_net)
             except ClusterNodeCannotManageDG:
-                # this node can't setup networks. Do nothing
+                # this node can't setup networks
+                # However, the network might already exist, we simply don't see it. Try to connect agent to it anyway
                 pass
-            # resume the DG mgmt activities on the next cycle
-            return
+            else:
+                # resume the DG mgmt activities on the next cycle
+                return
         else:
             # make sure the network driver makes sense, to avoid having a bridge network on a Swarm node
             dg_net_driver = dg_network.attrs.get('Driver')
@@ -552,11 +554,16 @@ class Supervise(object):
         # ## 3: finally, connect this node's Agent container to DG
         agent_container = self.find_nuvlabox_agent()
         if agent_container:
-            if dg_network.name not in agent_container.attrs.get('NetworkSettings', {}).get('Networks', {}).keys():
-                self.log.info(f'Connecting NuvlaBox Agent ({agent_container.name}) to network {dg_network.name}')
+            if utils.nuvlabox_shared_net not in \
+                    agent_container.attrs.get('NetworkSettings', {}).get('Networks', {}).keys():
+                self.log.info(f'Connecting NuvlaBox Agent ({agent_container.name}) '
+                              f'to network {utils.nuvlabox_shared_net}')
                 try:
-                    dg_network.connect(agent_container.id)
+                    self.docker_client.api.connect_container_to_network(agent_container.id, utils.nuvlabox_shared_net)
                 except Exception as e:
+                    if "notfound" in str(e).replace(' ', '').lower():
+                        # nothing to do. Network doesn't exist at all
+                        return
                     self.log.error(f'Error while connecting NuvlaBox Agent to Data Gateway network: {str(e)}')
         else:
             self.operational_status.append(utils.status_degraded)
@@ -685,7 +692,7 @@ class Supervise(object):
 
         self.log.info(f'Launching global network propagation service {utils.overlay_network_service}')
         self.docker_client.services.create('alpine',
-                                           command=f"echo {self.docker_client.info()}",
+                                           command=f"sh -c 'echo {self.docker_client.info()} && sleep 300'",
                                            container_labels=labels,
                                            labels=labels,
                                            mode="global",
