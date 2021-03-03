@@ -112,7 +112,7 @@ class SoftwareRequirements(object):
         else:
             if self.check_active_swarm():
                 self.log.info("Running in Swarm mode")
-                return True
+            return True
 
     def check_active_swarm(self):
         """ Checks that the device is running on Swarm mode """

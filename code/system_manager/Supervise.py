@@ -96,8 +96,12 @@ class Supervise(object):
         now = datetime.strftime(datetime.utcnow(), '%d-%m-%Y_%H%M%S')
         on_stop_container_name = f"nuvlabox-on-stop-{random_identifier}-{now}"
 
+        label = {
+            "nuvlabox.on-stop": "True"
+        }
         self.docker_client.containers.run(self.on_stop_docker_image,
                                           name=on_stop_container_name,
+                                          labels=label,
                                           environment=[f'PROJECT_NAME={project_name}'],
                                           volumes={
                                               '/var/run/docker.sock': {
@@ -453,7 +457,7 @@ class Supervise(object):
                                                   init=True,
                                                   detach=True,
                                                   labels=labels,
-                                                  restart={"Name": "always"},
+                                                  restart_policy={"Name": "always"},
                                                   oom_score_adj=-900,
                                                   network=utils.nuvlabox_shared_net,
                                                   command=cmd
@@ -553,7 +557,7 @@ class Supervise(object):
 
         # ## 3: finally, connect this node's Agent container (+data source containers) to DG
         agent_container = self.find_nuvlabox_agent()
-        data_source_containers = self.docker_client.containers.list(filter={'label': 'nuvlabox.data-source-container'})
+        data_source_containers = self.docker_client.containers.list(filters={'label': 'nuvlabox.data-source-container'})
 
         if agent_container:
             agent_container_id = agent_container.id
@@ -561,7 +565,7 @@ class Supervise(object):
             self.operational_status.append(utils.status_degraded)
             return
 
-        connecting_containers = agent_container + data_source_containers
+        connecting_containers = [agent_container] + data_source_containers
         for ccont in connecting_containers:
             if utils.nuvlabox_shared_net not in \
                     ccont.attrs.get('NetworkSettings', {}).get('Networks', {}).keys():
@@ -704,8 +708,9 @@ class Supervise(object):
         }
 
         self.log.info(f'Launching global network propagation service {utils.overlay_network_service}')
+        cmd = f"sh -c 'echo \"{json.dumps(self.docker_client.info(), indent=2)}\" && sleep 300'"
         self.docker_client.services.create('alpine',
-                                           command=f"sh -c 'echo {self.docker_client.info()} && sleep 300'",
+                                           command=cmd,
                                            container_labels=labels,
                                            labels=labels,
                                            mode="global",
