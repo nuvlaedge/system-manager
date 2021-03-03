@@ -551,22 +551,35 @@ class Supervise(object):
                 # NOTE: resume on the next cycle
                 return
 
-        # ## 3: finally, connect this node's Agent container to DG
+        # ## 3: finally, connect this node's Agent container (+data source containers) to DG
         agent_container = self.find_nuvlabox_agent()
+        data_source_containers = self.docker_client.containers.list(filter={'label': 'nuvlabox.data-source-container'})
+
         if agent_container:
+            agent_container_id = agent_container.id
+        else:
+            self.operational_status.append(utils.status_degraded)
+            return
+
+        connecting_containers = agent_container + data_source_containers
+        for ccont in connecting_containers:
             if utils.nuvlabox_shared_net not in \
-                    agent_container.attrs.get('NetworkSettings', {}).get('Networks', {}).keys():
-                self.log.info(f'Connecting NuvlaBox Agent ({agent_container.name}) '
+                    ccont.attrs.get('NetworkSettings', {}).get('Networks', {}).keys():
+                self.log.info(f'Connecting ({ccont.name}) '
                               f'to network {utils.nuvlabox_shared_net}')
                 try:
-                    self.docker_client.api.connect_container_to_network(agent_container.id, utils.nuvlabox_shared_net)
+                    self.docker_client.api.connect_container_to_network(ccont.id, utils.nuvlabox_shared_net)
                 except Exception as e:
                     if "notfound" in str(e).replace(' ', '').lower():
                         # nothing to do. Network doesn't exist at all
-                        return
-                    self.log.error(f'Error while connecting NuvlaBox Agent to Data Gateway network: {str(e)}')
-        else:
-            self.operational_status.append(utils.status_degraded)
+                        pass
+                    else:
+                        if ccont == agent_container_id:
+                            self.log.error(f'Error while connecting NuvlaBox Agent to Data Gateway network: {str(e)}')
+                            self.operational_status.append(utils.status_degraded)
+                            return
+                        # else, this is a data-source container and not as critical
+                    self.log.warning(f'Cannot connect {ccont.name} to Data Gateway network: {str(e)}')
 
     @cluster_workers_cannot_manage
     def find_data_gateway(self, name: str) -> bool:
