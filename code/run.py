@@ -35,6 +35,7 @@ class GracefulShutdown:
     def exit_gracefully(self, signum, frame):
         log.info(f'Starting on-stop graceful shutdown of the NuvlaBox...')
         self_sup.launch_nuvlabox_on_stop()
+        sys.exit(0)
 
 
 on_stop = GracefulShutdown()
@@ -84,7 +85,7 @@ def docker_stats_streaming():
         raise
     except:
         # catch all exceptions, cause if there's any problem, we simply want the thread to restart
-        log.exception("Restarting Docker stats streamer...")
+        log.error("Restarting Docker stats streamer...")
 
     return 0
 
@@ -104,6 +105,8 @@ while True:
     if self_sup.is_cert_rotation_needed():
         log.info("Rotating NuvlaBox certificates...")
         self_sup.request_rotate_certificates()
+
+    self_sup.check_nuvlabox_connectivity()
 
     self_sup.manage_data_gateway()
 

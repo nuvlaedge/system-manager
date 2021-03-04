@@ -126,7 +126,8 @@ class Supervise(object):
         try:
             container = self.docker_client.containers.get(on_stop_container_name)
         except docker.errors.NotFound:
-            return None
+            # default to dev image
+            return 'nuvladev/on-stop:main'
         except Exception as e:
             self.log.error(f"Unable to search for container {on_stop_container_name}. Reason: {str(e)}")
             return None
@@ -498,6 +499,33 @@ class Supervise(object):
 
         return self.docker_client.containers.get(agent_container_id.json())
 
+    def check_dg_network(self, target_network: docker.DockerClient.networks):
+        """
+        Makes sure the DG is connected to the right network
+
+        :param target_network: network to be checked (object)
+        :return:
+        """
+
+        if not self.data_gateway_object:
+            self.log.warning('Data Gateway object does not exist. Cannot check its network')
+            return
+
+        try:
+            if self.is_swarm_enabled:
+                current_networks = [vip.get('NetworkID') for vip in self.data_gateway_object.attrs.get('Endpoint', {}).get('VirtualIPs', [])]
+            else:
+                current_networks = self.data_gateway_object.attrs.get('NetworkSettings', {}).get('Networks', {}).keys()
+
+            if target_network.name not in current_networks and target_network.id not in current_networks:
+                self.log.info(f'Adding network {target_network.name} to {self.data_gateway_object.name}')
+                if self.is_swarm_enabled:
+                    self.data_gateway_object.update(networks=[target_network.name] + current_networks)
+                else:
+                    target_network.connect(self.data_gateway_object.name)
+        except Exception as e:
+            self.log.error(f'Cannot add network {target_network.name} to DG {self.data_gateway_object.name}: {str(e)}')
+
     def manage_data_gateway(self):
         """ Sets the DG service.
 
@@ -525,6 +553,16 @@ class Supervise(object):
             dg_net_driver = dg_network.attrs.get('Driver')
             if dg_net_driver.lower() == 'bridge' and self.is_swarm_enabled:
                 self.destroy_network(dg_network)
+                # if swarm is enabled, a container-based data-gateway doesn't make sense
+                try:
+                    self.docker_client.containers.get(self.data_gateway_name)
+                except docker.errors.NotFound:
+                    pass
+                else:
+                    try:
+                        self.docker_client.api.remove_container(self.data_gateway_name, force=True)
+                    except Exception as e:
+                        self.log.error(f'Could not remove old {self.data_gateway_name} container: {str(e)}')
                 # reset cycle cause network needs to be recreated
                 return
 
@@ -554,6 +592,9 @@ class Supervise(object):
 
                 # NOTE: resume on the next cycle
                 return
+            else:
+                # double check DG still has the right network
+                self.check_dg_network(dg_network)
 
         # ## 3: finally, connect this node's Agent container (+data source containers) to DG
         agent_container = self.find_nuvlabox_agent()
@@ -768,3 +809,71 @@ class Supervise(object):
                     dg_container.start()
                 except Exception as e:
                     self.log.exception(f'Unable to force restart {dg_container.name}. Reason: {str(e)}')
+
+    def check_nuvlabox_connectivity(self):
+        """
+        Makes sure all NBE containers are connected to the original bridge network (at least)
+
+        This is mainly because of a connectivity bug in Docker, whereby docker-compose container loose their
+        bridge network when the Swarm state changes:
+
+        https://github.com/docker/compose/issues/8110
+
+        :return:
+        """
+
+        # reload the docker client just in case
+        self.docker_client = docker.from_env()
+
+        try:
+            myself = self.docker_client.containers.get(socket.gethostname())
+        except docker.errors.NotFound:
+            self.log.error(f'Cannot find this container by hostname: {socket.gethostname()}. Cannot proceed')
+            self.operational_status.append(utils.status_degraded)
+            return
+
+        try:
+            project_name = myself.labels['com.docker.compose.project']
+        except KeyError:
+            self.log.warning(f'Cannot infer Docker Compose project name from the labels in {myself.name}.'
+                             f'Trying to infer from container name')
+            project_name = myself.name.split('_')[0] if len(myself.name.split('_')) > 1 else None
+            if not project_name:
+                self.log.error(f'Impossible to infer Docker Compose project name!')
+                self.operational_status.append(utils.status_degraded)
+                return
+
+        original_project_label = f'com.docker.compose.project={project_name}'
+        original_nb_containers = self.docker_client.containers.list(filters={'label': original_project_label})
+        original_nb_internal_network = self.docker_client.networks.list(filters={'label': original_project_label,
+                                                                                 'driver': 'bridge'})
+
+        if not original_nb_containers or not original_nb_internal_network:
+            self.operational_status.append(utils.status_degraded)
+            self.log.warning(f'Unable to check nuvlabox connectivity: original containers/network not found')
+            return
+
+        for container in original_nb_containers:
+            if container.attrs.get('HostConfig', {}).get('NetworkMode', '') == 'host':
+                # containers in host mode are not affected
+                continue
+
+            # there should only be 1 original nb internal network, so take the 1st one
+            if not any(net_id in container.attrs.get('NetworkSettings', {}).get('Networks', {}).keys()
+                       for net_id in [original_nb_internal_network[0].name, original_nb_internal_network[0].id]):
+                self.log.warning(f'Container {container.name} lost its network {original_nb_internal_network[0].name}.'
+                                 f'Reconnecting...')
+
+                service_name = [container.labels['com.docker.compose.service']] if container.labels.get('com.docker.compose.service') else []
+                try:
+                    original_nb_internal_network[0].connect(container.name, aliases=service_name)
+                except docker.errors.APIError as e:
+                    if "already exists in network" in str(e).lower():
+                        continue
+                    elif "notfound" in str(e).replace(' ', '').lower():
+                        self.log.warning(f'Network {original_nb_internal_network[0].name} ceased to exist '
+                                         f'during connectivity check. Nothing to do.')
+                        return
+                    self.log.error(f'Unable to reconnect {container.name} to '
+                                   f'network {original_nb_internal_network[0].name}: {str(e)}')
+                    self.operational_status.append(utils.status_degraded)
