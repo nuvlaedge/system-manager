@@ -49,6 +49,7 @@ class Supervise(object):
         self.data_gateway_name = 'data-gateway'
         self.i_am_manager = self.is_swarm_enabled = self.node = None
         self.operational_status = []
+        self.agent_dg_failed_connection = 0
 
     @staticmethod
     def printer(content, file):
@@ -619,12 +620,32 @@ class Supervise(object):
                         # nothing to do. Network doesn't exist at all
                         pass
                     else:
-                        if ccont == agent_container_id:
+                        if ccont.id == agent_container_id:
                             self.log.error(f'Error while connecting NuvlaBox Agent to Data Gateway network: {str(e)}')
                             self.operational_status.append(utils.status_degraded)
                             return
                         # else, this is a data-source container and not as critical
                     self.log.warning(f'Cannot connect {ccont.name} to Data Gateway network: {str(e)}')
+
+        # test agent connection with data-gateway
+        try:
+            r = requests.get('http://agent/api/agent-container-id')
+        except requests.exceptions.ConnectionError as e:
+            self.log.warning(f'Agent API connection error: {str(e)}')
+            self.operational_status.append(utils.status_degraded)
+            return
+
+        if r.status_code == 404:
+            self.agent_dg_failed_connection += 1
+
+        if self.agent_dg_failed_connection > 3:
+            # do something after 3 reports
+            self.log.warning('Agent seems unable to reach the Data Gateway. Restarting the Data Gateway')
+            self.agent_dg_failed_connection = 0
+            if self.is_swarm_enabled and self.i_am_manager:
+                self.data_gateway_object.force_update()
+            else:
+                self.data_gateway_object.restart()
 
     @cluster_workers_cannot_manage
     def find_data_gateway(self, name: str) -> bool:
