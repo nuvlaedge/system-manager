@@ -784,53 +784,6 @@ class Supervise(object):
 
         return True
 
-    def keep_datagateway_containers_up(self):
-        """ Restarts the datagateway containers, if any. These are identified by their labels
-
-        :return:
-        """
-
-        container_label = 'nuvlabox.data-source-container=True'
-
-        datagateway_containers = self.docker_client.containers.list(all=True, filters={'label': container_label})
-
-        if datagateway_containers:
-            peripherals = self.get_nuvlabox_peripherals()
-        else:
-            return
-
-        peripheral_ids = list(map(lambda x: x.get("id"), peripherals))
-
-        for dg_container in datagateway_containers:
-            id = f"nuvlabox-peripheral/{dg_container.name}"
-            if id not in peripheral_ids:
-                # then it means the peripheral is gone, and the DG container was not removed
-                self.log.warning(f"Found old DG container {dg_container.name}. Trying to disable it")
-                try:
-                    # TODO: this is only considering the mjpg streamer. It is not generic!
-                    r = requests.post("https://management-api:5001/api/data-source-mjpg/disable",
-                                      verify=False,
-                                      cert=(utils.cert_file, utils.key_file),
-                                      json={"id": id})
-                    r.raise_for_status()
-                except:
-                    # force disable manual
-                    self.log.exception(f"Could not disable DG container {dg_container.name} via the management-api. Force deleting it...")
-                    try:
-                        dg_container.remove(force=True)
-                    except Exception as e:
-                        self.log.error(f"Unable to cleanup old DG container {dg_container.name}: {str(e)}")
-
-                continue
-
-            if dg_container.status.lower() not in ["running", "paused"]:
-                self.log.warning(f'The data-gateway container {dg_container.name} is down. Forcing its restart...')
-
-                try:
-                    dg_container.start()
-                except Exception as e:
-                    self.log.exception(f'Unable to force restart {dg_container.name}. Reason: {str(e)}')
-
     def check_nuvlabox_connectivity(self):
         """
         Makes sure all NBE containers are connected to the original bridge network (at least)

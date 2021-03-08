@@ -110,14 +110,6 @@ while True:
 
     self_sup.manage_data_gateway()
 
-    # COPING WITH CORNER CASE ISSUES 2
-    # https://github.com/docker/compose/issues/6385
-    # occasionally, a container restart might fail to
-    # find the overlay nuvlabox-shared-netword: "failed to get network during CreateEndpoint: network"
-    # It might be solved in recent versions of Docker: https://github.com/moby/moby/pull/41189
-    # But for older versions, this routine makes sure the datagateway data-source* containers are kept alive
-    self_sup.keep_datagateway_containers_up()
-
     p.join()
     if p.exitcode > 0:
         raise Exception("Docker stats streaming failed. Need to restart System Manager!")
