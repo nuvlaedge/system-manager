@@ -493,7 +493,7 @@ class Supervise(object):
             agent_container_id = requests.get('http://agent/api/agent-container-id')
         except requests.exceptions.ConnectionError:
             self.log.warning('Agent API is not ready yet. Trying again later')
-            self.operational_status.append(utils.status_degraded)
+            self.operational_status.append((utils.status_degraded, 'Agent API is not available'))
             return None
 
         agent_container_id.raise_for_status()
@@ -589,7 +589,7 @@ class Supervise(object):
                     pass
                 finally:
                     if not launched_dg:
-                        self.operational_status.append(utils.status_degraded)
+                        self.operational_status.append((utils.status_degraded, 'Unable to launch Data Gateway'))
 
                 # NOTE: resume on the next cycle
                 return
@@ -604,7 +604,7 @@ class Supervise(object):
         if agent_container:
             agent_container_id = agent_container.id
         else:
-            self.operational_status.append(utils.status_degraded)
+            self.operational_status.append((utils.status_degraded, 'NuvlaBox Agent is dead'))
             return
 
         connecting_containers = [agent_container] + data_source_containers
@@ -622,7 +622,8 @@ class Supervise(object):
                     else:
                         if ccont.id == agent_container_id:
                             self.log.error(f'Error while connecting NuvlaBox Agent to Data Gateway network: {str(e)}')
-                            self.operational_status.append(utils.status_degraded)
+                            self.operational_status.append((utils.status_degraded,
+                                                            f'Data Gateway connection error: {str(e)}'))
                             return
                         # else, this is a data-source container and not as critical
                     self.log.warning(f'Cannot connect {ccont.name} to Data Gateway network: {str(e)}')
@@ -631,8 +632,9 @@ class Supervise(object):
         try:
             r = requests.get('http://agent/api/agent-container-id')
         except requests.exceptions.ConnectionError as e:
-            self.log.warning(f'Agent API connection error: {str(e)}')
-            self.operational_status.append(utils.status_degraded)
+            msg = f'Agent API connection error: {str(e)}'
+            self.log.warning(msg)
+            self.operational_status.append((utils.status_degraded, msg))
             return
 
         if r.status_code == 404:
@@ -803,7 +805,7 @@ class Supervise(object):
             myself = self.docker_client.containers.get(socket.gethostname())
         except docker.errors.NotFound:
             self.log.error(f'Cannot find this container by hostname: {socket.gethostname()}. Cannot proceed')
-            self.operational_status.append(utils.status_degraded)
+            self.operational_status.append((utils.status_degraded, 'System Manager container lookup error'))
             return
 
         try:
@@ -813,8 +815,9 @@ class Supervise(object):
                              f'Trying to infer from container name')
             project_name = myself.name.split('_')[0] if len(myself.name.split('_')) > 1 else None
             if not project_name:
-                self.log.error(f'Impossible to infer Docker Compose project name!')
-                self.operational_status.append(utils.status_degraded)
+                msg = 'Impossible to infer Docker Compose project name!'
+                self.log.error(msg)
+                self.operational_status.append((utils.status_degraded, msg))
                 return
 
         original_project_label = f'com.docker.compose.project={project_name}'
@@ -823,8 +826,8 @@ class Supervise(object):
                                                                                  'driver': 'bridge'})
 
         if not original_nb_containers or not original_nb_internal_network:
-            self.operational_status.append(utils.status_degraded)
-            self.log.warning(f'Unable to check nuvlabox connectivity: original containers/network not found')
+            self.operational_status.append((utils.status_degraded, 'Original NuvlaBox network not found'))
+            self.log.warning('Unable to check nuvlabox connectivity: original containers/network not found')
             return
 
         for container in original_nb_containers:
@@ -850,4 +853,5 @@ class Supervise(object):
                         return
                     self.log.error(f'Unable to reconnect {container.name} to '
                                    f'network {original_nb_internal_network[0].name}: {str(e)}')
-                    self.operational_status.append(utils.status_degraded)
+                    self.operational_status.append((utils.status_degraded,
+                                                    'NuvlaBox containers lost their network connection'))

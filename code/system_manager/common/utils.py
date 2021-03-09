@@ -14,6 +14,7 @@ cert_file = f"{data_volume}/cert.pem"
 key_file = f"{data_volume}/key.pem"
 nuvlabox_peripherals_folder = "{}/.peripherals".format(data_volume)
 operational_status_file = f'{data_volume}/.status'
+operational_status_notes_file = f'{data_volume}/.status_notes'
 base_label = "nuvlabox.component=True"
 node_label_key = "nuvlabox"
 
@@ -60,6 +61,14 @@ def cleanup(containers=None, exclude=None):
             docker.from_env().api.stop(cont.id, timeout=5)
 
 
-def set_operational_status(status: str):
+def set_operational_status(status: str, notes: list = None):
     with open(operational_status_file, 'w') as s:
         s.write(status)
+
+    if notes:
+        try:
+            with open(operational_status_notes_file, 'w') as sn:
+                sn.write('\n'.join(notes))
+        except Exception as e:
+            log.warning(f'Failed to write status notes {notes} in {operational_status_notes_file}: {str(e)}')
+            pass

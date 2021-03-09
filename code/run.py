@@ -114,9 +114,12 @@ while True:
     if p.exitcode > 0:
         raise Exception("Docker stats streaming failed. Need to restart System Manager!")
 
-    if utils.status_degraded in self_sup.operational_status:
-        utils.set_operational_status(utils.status_degraded)
-    elif all([x == utils.status_operational for x in self_sup.operational_status]) or not self_sup.operational_status:
+    statuses = [s[0] for s in self_sup.operational_status]
+    status_notes = [s[-1] for s in self_sup.operational_status]
+
+    if utils.status_degraded in statuses:
+        utils.set_operational_status(utils.status_degraded, status_notes)
+    elif all([x == utils.status_operational for x in statuses]) or not self_sup.operational_status:
         utils.set_operational_status(utils.status_operational)
     else:
         utils.set_operational_status(utils.status_unknown)
