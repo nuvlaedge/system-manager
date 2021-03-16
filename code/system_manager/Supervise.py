@@ -629,7 +629,10 @@ class Supervise(object):
                                                             f'Data Gateway connection error: {str(e)}'))
                             return
                         # else, this is a data-source container and not as critical
-                    self.log.warning(f'Cannot connect {ccont.name} to Data Gateway network: {str(e)}')
+                    err_msg = f'Cannot connect {ccont.name} to Data Gateway network'
+                    self.operational_status.append((utils.status_degraded, err_msg))
+
+                    self.log.warning(f'{err_msg}: {str(e)}')
 
         # test agent connection with data-gateway
         try:
