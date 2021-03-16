@@ -155,8 +155,11 @@ class Supervise(object):
         # if it got here, there Swarm is active
         self.is_swarm_enabled = True
 
-        remote_managers = [rm.get('NodeID') for rm in swarm_info.get('RemoteManagers', [])]
-        self.i_am_manager = True if node_id in remote_managers else False
+        remote_managers = swarm_info.get('RemoteManagers')
+        managers = []
+        if remote_managers:
+            managers = [rm.get('NodeID') for rm in remote_managers]
+        self.i_am_manager = True if node_id in managers else False
 
         if self.i_am_manager:
             self.node = self.docker_client.nodes.get(node_id)
