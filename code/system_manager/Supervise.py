@@ -50,6 +50,7 @@ class Supervise(object):
         self.i_am_manager = self.is_swarm_enabled = self.node = None
         self.operational_status = []
         self.agent_dg_failed_connection = 0
+        self.lost_quorum_hint = 'possible that too few managers are online'
 
     @staticmethod
     def printer(content, file):
@@ -162,7 +163,17 @@ class Supervise(object):
         self.i_am_manager = True if node_id in managers else False
 
         if self.i_am_manager:
-            self.node = self.docker_client.nodes.get(node_id)
+            try:
+                self.node = self.docker_client.nodes.get(node_id)
+            except docker.errors.APIError as e:
+                if self.lost_quorum_hint in str(e):
+                    # quorum is lost
+                    msg = 'Quorum is lost. This node will not support Service and Cluster management'
+                    self.log.warning(msg)
+                    err_msg = swarm_info.get('Error') if swarm_info.get('Error') else msg
+                    self.operational_status.append((utils.status_degraded, err_msg))
+
+                return
             try:
                 node_spec = self.node.attrs['Spec']
             except KeyError as e:

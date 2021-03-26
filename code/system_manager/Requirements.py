@@ -117,4 +117,9 @@ class SoftwareRequirements(object):
     def check_active_swarm(self):
         """ Checks that the device is running on Swarm mode """
 
-        return False if not self.docker_client.swarm.attrs else True
+        try:
+            swarm_attrs = self.docker_client.swarm.attrs
+        except docker.errors.APIError:
+            return False
+
+        return False if not swarm_attrs else True
