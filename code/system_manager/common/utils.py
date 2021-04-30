@@ -14,10 +14,19 @@ cert_file = f"{data_volume}/cert.pem"
 key_file = f"{data_volume}/key.pem"
 nuvlabox_peripherals_folder = "{}/.peripherals".format(data_volume)
 operational_status_file = f'{data_volume}/.status'
+operational_status_notes_file = f'{data_volume}/.status_notes'
 base_label = "nuvlabox.component=True"
+node_label_key = "nuvlabox"
+
+nuvlabox_shared_net = 'nuvlabox-shared-network'
+overlay_network_service = 'nuvlabox-ack'
 
 docker_stats_html_file = "docker_stats.html"
 html_templates = "templates"
+
+status_degraded = 'DEGRADED'
+status_operational = 'OPERATIONAL'
+status_unknown = 'UNKNOWN'
 
 tls_sync_file = f"{data_volume}/.tls"
 
@@ -52,6 +61,13 @@ def cleanup(containers=None, exclude=None):
             docker.from_env().api.stop(cont.id, timeout=5)
 
 
-def set_operational_status(status: str):
+def set_operational_status(status: str, notes: list = []):
     with open(operational_status_file, 'w') as s:
         s.write(status)
+
+    try:
+        with open(operational_status_notes_file, 'w') as sn:
+            sn.write('\n'.join(notes))
+    except Exception as e:
+        log.warning(f'Failed to write status notes {notes} in {operational_status_notes_file}: {str(e)}')
+        pass

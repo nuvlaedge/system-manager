@@ -31,8 +31,8 @@ class SystemRequirements(object):
         self.log = logging.getLogger(__name__)
         self.minimum_requirements = {
             "cpu": 1,
-            "ram": 768,
-            "disk": 1
+            "ram": 512,
+            "disk": 2
         }
         self.docker_client = docker.from_env()
 
@@ -57,7 +57,7 @@ class SystemRequirements(object):
 
         if total_ram < self.minimum_requirements["ram"]:
             self.log.error("Your device only provides {} MBs of memory. MIN REQUIREMENTS: {} MBs"
-                          .format(total_ram, self.minimum_requirements["ram"]))
+                           .format(total_ram, self.minimum_requirements["ram"]))
             return False
         else:
             return True
@@ -70,7 +70,7 @@ class SystemRequirements(object):
 
         if total_disk < self.minimum_requirements["disk"]:
             self.log.error("Your device only provides {} GBs of disk. MIN REQUIREMENTS: {} GBs"
-                          .format(total_disk, self.minimum_requirements["disk"]))
+                           .format(total_disk, self.minimum_requirements["disk"]))
             return False
         else:
             return True
@@ -107,32 +107,19 @@ class SoftwareRequirements(object):
 
         if docker_major_version < self.minimum_requirements["docker_version"]:
             self.log.error("Your Docker version is too old: {}. MIN REQUIREMENTS: Docker {} or newer"
-                         .format(docker_major_version, self.minimum_requirements["docker_version"]))
+                           .format(docker_major_version, self.minimum_requirements["docker_version"]))
             return False
         else:
-            if not self.check_active_swarm():
-                self.log.error("The minimum requirements for your Docker setup are not met!")
-                return False
-            else:
-                return True
+            if self.check_active_swarm():
+                self.log.info("Running in Swarm mode")
+            return True
 
     def check_active_swarm(self):
         """ Checks that the device is running on Swarm mode """
 
-        if not self.docker_client.swarm.attrs:
-            self.log.error("Your device is not running in Swarm mode! "
-                            "To install the NuvlaBox Engine, please first run 'docker swarm init'")
+        try:
+            swarm_attrs = self.docker_client.swarm.attrs
+        except docker.errors.APIError:
             return False
-        elif not self.check_is_swarm_manager():
-            self.log.error("Your device is not a Swarm manager! "
-                          "The NuvlaBox Engine can only run in Swarm Manager nodes")
-            return False
-        else:
-            return True
 
-    def check_is_swarm_manager(self):
-        """ Checks that the device is a Swarm manager """
-
-        return self.docker_client.info()["Swarm"]["NodeID"] in \
-            [manager["NodeID"] for manager in self.docker_client.info()["Swarm"]["RemoteManagers"]]
-
+        return False if not swarm_attrs else True

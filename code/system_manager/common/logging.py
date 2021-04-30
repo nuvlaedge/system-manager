@@ -5,4 +5,4 @@
 
 import logging
 
-logging.basicConfig(format='%(levelname)s - %(funcName)s - %(message)s', level='INFO')
+logging.basicConfig(format='%(levelname)s - %(filename)s/%(module)s/%(funcName)s - %(message)s', level='INFO')
