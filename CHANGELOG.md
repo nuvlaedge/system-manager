@@ -1,4 +1,11 @@
 # Changelog
+## [2.0.0] - 2021-04-30
+### Added 
+ - support for clustering 
+ - self-managed data gateway 
+ - gracefull handling of shutdowns
+### Changed
+ - improve supervisioning
 ## [1.4.1] - 2021-01-12
 ### Added 
  - reap obsolete data-gateway containers, based on their Nuvla resource ID
