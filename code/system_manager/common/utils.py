@@ -22,6 +22,8 @@ nuvlabox_shared_net = 'nuvlabox-shared-network'
 overlay_network_service = 'nuvlabox-ack'
 
 docker_stats_html_file = "docker_stats.html"
+docker_stats_json_file = f"{data_volume}/docker_stats.json"
+
 html_templates = "templates"
 
 status_degraded = 'DEGRADED'

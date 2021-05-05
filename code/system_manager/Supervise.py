@@ -283,102 +283,30 @@ class Supervise(object):
                 ' </thead>' \
                 ' <tbody>'.format(datetime.utcnow())
 
-        errors = []
-        for container in self.docker_client.containers.list():
-            previous_cpu = previous_system = cpu_percent = mem_percent = mem_usage = mem_limit = net_in = net_out = blk_in = blk_out = 0.0
-            restart_count = 0
-            container_status = "unknown"
-            x = 0
-            # TODO: this should be executed in parallel, one thread per generator
-            for container_stats in self.docker_client.api.stats(container.id, stream=True, decode=True):
-                cpu_percent = 0.0
+        if os.path.exists(utils.docker_stats_json_file):
+            with open(utils.docker_stats_json_file) as cstats:
+                container_stats = json.load(cstats)
 
-                try:
-                    cpu_total = float(container_stats["cpu_stats"]["cpu_usage"]["total_usage"])
-                    cpu_system = float(container_stats["cpu_stats"]["system_cpu_usage"])
-                    online_cpus = container_stats["cpu_stats"] \
-                        .get("online_cpus", len(container_stats["cpu_stats"]["cpu_usage"].get("percpu_usage", -1)))
-
-                    cpu_delta = cpu_total - previous_cpu
-                    system_delta = cpu_system - previous_system
-
-                    if system_delta > 0.0 and online_cpus > -1:
-                        cpu_percent = (cpu_delta / system_delta) * online_cpus * 100.0
-
-                    previous_system = cpu_system
-                    previous_cpu = cpu_total
-                except (IndexError, KeyError, ValueError, ZeroDivisionError) as e:
-                    self.log.debug(f"Cannot get CPU stats for container {container.name}: {str(e)}. Moving on")
-                    cpu_percent = 0.0
-                    error_name = f'{container.name}:cpu:{str(e)}'
-                    if error_name not in errors:
-                        errors.append(error_name)
-
-                # generate stats at least twice
-                x += 1
-                if x >= 2:
-                    try:
-                        mem_usage = float(container_stats["memory_stats"]["usage"] / 1024 / 1024)
-                        mem_limit = float(container_stats["memory_stats"]["limit"] / 1024 / 1024)
-                        if round(mem_limit, 2) == 0.00:
-                            mem_percent = 0.00
-                        else:
-                            mem_percent = round(float(mem_usage / mem_limit) * 100, 2)
-                    except (IndexError, KeyError, ValueError) as e:
-                        self.log.debug(f"Cannot get Mem stats for container {container.name}: {str(e)}. Moving on")
-                        mem_percent = mem_usage = mem_limit = 0.00
-                        error_name = f'{container.name}:mem:{str(e)}'
-                        if error_name not in errors:
-                            errors.append(error_name)
-
-                    if "networks" in container_stats:
-                        net_in = sum(container_stats["networks"][iface]["rx_bytes"] for iface in container_stats["networks"]) / 1000 / 1000
-                        net_out = sum(container_stats["networks"][iface]["tx_bytes"] for iface in container_stats["networks"]) / 1000 / 1000
-
-                    try:
-                        blk_in = float(container_stats.get("blkio_stats", {}).get("io_service_bytes_recursive", [{"value": 0}])[0]["value"] / 1000 / 1000)
-                    except Exception as e:
-                        self.log.debug(f"Cannot get Block stats for container {container.name}: {str(e)}. Moving on")
-                        blk_in = 0.0
-                        error_name = f'{container.name}:block-in:{str(e)}'
-                        if error_name not in errors:
-                            errors.append(error_name)
-                    try:
-                        blk_out = float(container_stats.get("blkio_stats", {}).get("io_service_bytes_recursive", [0, {"value": 0}])[1]["value"] / 1000 / 1000)
-                    except Exception as e:
-                        self.log.debug(f"Cannot get Block stats for container {container.name}: {str(e)}. Moving on")
-                        blk_out = 0.0
-                        error_name = f'{container.name}:block-out:{str(e)}'
-                        if error_name not in errors:
-                            errors.append(error_name)
-
-                    container_status = container.status
-                    restart_count = int(container.attrs["RestartCount"]) if "RestartCount" in container.attrs else 0
-
-                    stats += '<tr>' \
-                             ' <th scope="row">{}</th> ' \
-                             ' <td>{}</td>' \
-                             ' <td>{}</td>' \
-                             ' <td>{}</td>' \
-                             ' <td>{}</td>' \
-                             ' <td>{}</td>' \
-                             ' <td>{}</td>' \
-                             ' <td>{}</td>' \
-                             ' <td>{}</td>' \
-                             '</tr>'.format(container.id[:12],
-                                            container.name[:25],
-                                            "%.2f" % round(cpu_percent, 2),
-                                            "%sMiB / %sGiB" % (round(mem_usage, 2), round(mem_limit / 1024, 2)),
-                                            "%.2f" % mem_percent,
-                                            "%sMB / %sMB" % (round(net_in, 2), round(net_out, 2)),
-                                            "%sMB / %sMB" % (round(blk_in, 2), round(blk_out, 2)),
-                                            container_status,
-                                            restart_count)
-                    # stop streaming
-                    break
-
-        if errors:
-            self.log.debug(f'Failed to get some container stats. List (container:metric:error): {", ".join(errors)}')
+            for container_stat in container_stats:
+                stats += '<tr>' \
+                         ' <th scope="row">{}</th> ' \
+                         ' <td>{}</td>' \
+                         ' <td>{}</td>' \
+                         ' <td>{}</td>' \
+                         ' <td>{}</td>' \
+                         ' <td>{}</td>' \
+                         ' <td>{}</td>' \
+                         ' <td>{}</td>' \
+                         ' <td>{}</td>' \
+                         '</tr>'.format(container_stat.get('id', '')[:12],
+                                        container_stat.get('name', '')[:25],
+                                        container_stat.get('cpu', 0.0),
+                                        container_stat.get('mem-usage-limit', "MB / MB"),
+                                        container_stat.get('mem', 0.0),
+                                        container_stat.get('net-in-out', "MB / MB"),
+                                        container_stat.get('blk-in-out', "MB / MB"),
+                                        container_stat.get('status'),
+                                        container_stat.get('restart-count', 0))
 
         stats += ' </tbody>' \
                  '</table>'
