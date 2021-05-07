@@ -14,7 +14,7 @@ import os
 import subprocess
 import system_manager.Requirements as MinReq
 import signal
-from multiprocessing import Process
+import time
 from system_manager.common import utils
 from system_manager.common.logging import logging
 from system_manager.Supervise import Supervise
@@ -97,10 +97,6 @@ while True:
 
     self_sup.manage_data_gateway()
 
-    p.join()
-    if p.exitcode > 0:
-        raise Exception("Docker stats streaming failed. Need to restart System Manager!")
-
     statuses = [s[0] for s in self_sup.operational_status]
     status_notes = [s[-1] for s in self_sup.operational_status]
 
@@ -110,4 +106,6 @@ while True:
         utils.set_operational_status(utils.status_operational)
     else:
         utils.set_operational_status(utils.status_unknown)
+
+    time.sleep(3)
 

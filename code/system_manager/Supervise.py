@@ -300,12 +300,12 @@ class Supervise(object):
                          ' <td>{}</td>' \
                          '</tr>'.format(container_stat.get('id', '')[:12],
                                         container_stat.get('name', '')[:25],
-                                        container_stat.get('cpu', 0.0),
+                                        container_stat.get('cpu-percent', 0.0),
                                         container_stat.get('mem-usage-limit', "MB / MB"),
-                                        container_stat.get('mem', 0.0),
+                                        container_stat.get('mem-percent', 0.0),
                                         container_stat.get('net-in-out', "MB / MB"),
                                         container_stat.get('blk-in-out', "MB / MB"),
-                                        container_stat.get('status'),
+                                        container_stat.get('container-status'),
                                         container_stat.get('restart-count', 0))
 
         stats += ' </tbody>' \
