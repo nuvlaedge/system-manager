@@ -107,5 +107,5 @@ while True:
     else:
         utils.set_operational_status(utils.status_unknown)
 
-    time.sleep(3)
+    time.sleep(5)
 
