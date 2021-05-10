@@ -14,7 +14,7 @@ import os
 import subprocess
 import system_manager.Requirements as MinReq
 import signal
-from multiprocessing import Process
+import time
 from system_manager.common import utils
 from system_manager.common.logging import logging
 from system_manager.Supervise import Supervise
@@ -78,25 +78,12 @@ api_launch = 'gunicorn --bind=0.0.0.0:3636 --threads=2 --worker-class=gthread --
 api = None
 
 
-def docker_stats_streaming():
-    try:
-        self_sup.write_docker_stats_table_html()
-    except requests.exceptions.ConnectionError:
-        raise
-    except:
-        # catch all exceptions, cause if there's any problem, we simply want the thread to restart
-        log.error("Restarting Docker stats streamer...")
-
-    return 0
-
-
 while True:
     self_sup.operational_status = []
     if not api or not api.pid:
         api = subprocess.Popen(api_launch.split())
 
-    p = Process(target=docker_stats_streaming)
-    p.start()
+    self_sup.write_docker_stats_table_html()
 
     # refresh this node's status, to capture any changes in the COE/Cluster configuration
     self_sup.classify_this_node()
@@ -110,10 +97,6 @@ while True:
 
     self_sup.manage_data_gateway()
 
-    p.join()
-    if p.exitcode > 0:
-        raise Exception("Docker stats streaming failed. Need to restart System Manager!")
-
     statuses = [s[0] for s in self_sup.operational_status]
     status_notes = [s[-1] for s in self_sup.operational_status]
 
@@ -123,4 +106,6 @@ while True:
         utils.set_operational_status(utils.status_operational)
     else:
         utils.set_operational_status(utils.status_unknown)
+
+    time.sleep(5)
 
