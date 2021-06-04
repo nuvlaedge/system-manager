@@ -97,6 +97,8 @@ while True:
 
     self_sup.manage_data_gateway()
 
+    self_sup.healer()
+
     statuses = [s[0] for s in self_sup.operational_status]
     status_notes = [s[-1] for s in self_sup.operational_status]
 

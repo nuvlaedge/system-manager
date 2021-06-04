@@ -51,6 +51,7 @@ class Supervise(object):
         self.operational_status = []
         self.agent_dg_failed_connection = 0
         self.lost_quorum_hint = 'possible that too few managers are online'
+        self.nuvlabox_containers = []
 
     @staticmethod
     def printer(content, file):
@@ -767,6 +768,7 @@ class Supervise(object):
 
         original_project_label = f'com.docker.compose.project={project_name}'
         original_nb_containers = self.docker_client.containers.list(filters={'label': original_project_label})
+        self.nuvlabox_containers = self.docker_client.containers.list(filters={'label': original_project_label}, all=True)
         original_nb_internal_network = self.docker_client.networks.list(filters={'label': original_project_label,
                                                                                  'driver': 'bridge'})
 
@@ -800,3 +802,48 @@ class Supervise(object):
                                    f'network {original_nb_internal_network[0].name}: {str(e)}')
                     self.operational_status.append((utils.status_degraded,
                                                     'NuvlaBox containers lost their network connection'))
+
+    def healer(self):
+        """
+        Loops through the NB containers and tries to fix the ones that are broken
+
+        :return:
+        """
+
+        if not self.nuvlabox_containers:
+            return
+
+        for container in self.nuvlabox_containers:
+            status = container.status.lower()
+            if status not in ["paused", "running", "restarting"]:
+                # what to do if:
+                # . status is "created"?
+                # .. just start the container
+                if status == 'created':
+                    try:
+                        self.docker_client.start()
+                        continue
+                    except docker.errors.APIError as e:
+                        self.log.error(f'Cannot resume container {container.name}. Reason: {str(e)}')
+
+                # . status is "exited"?
+                # .. understand why. If exit code is 0, then it exited gracefully...thus it is not broken
+                if status == 'exited':
+                    attrs = container.attrs
+                    state = attrs.get('State', {})
+                    exit_code = state.get('ExitCode', 0)
+                    if exit_code > 0:
+                        # is it already restarting?
+                        if state.get('Restarting', False):
+                            # nothing to do then
+                            continue
+
+                        if attrs.get('HostConfig', {}).get('RestartPolicy', {}).get('Name', 'no').lower() in ['no']:
+                            continue
+
+                        # at this stage we simply need to try to restart it
+                        try:
+                            self.log.info(f'Container {container.name} exited and is not restarting. Forcing restart')
+                            container.restart()
+                        except docker.errors.APIError as e:
+                            self.log.error(f'Cannot heal container {container.name}. Reason: {str(e)}')
