@@ -838,7 +838,7 @@ class Supervise(object):
                             # nothing to do then
                             continue
 
-                        if attrs.get('HostConfig', {})('RestartPolicy', 'no').lower() in ['no', 'unless-stopped']:
+                        if attrs.get('HostConfig', {}).get('RestartPolicy', 'no').lower() in ['no', 'unless-stopped']:
                             continue
 
                         # at this stage we simply need to try to restart it
