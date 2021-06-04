@@ -768,7 +768,7 @@ class Supervise(object):
 
         original_project_label = f'com.docker.compose.project={project_name}'
         original_nb_containers = self.docker_client.containers.list(filters={'label': original_project_label})
-        self.nuvlabox_containers = original_nb_containers
+        self.nuvlabox_containers = self.docker_client.containers.list(filters={'label': original_project_label}, all=True)
         original_nb_internal_network = self.docker_client.networks.list(filters={'label': original_project_label,
                                                                                  'driver': 'bridge'})
 
