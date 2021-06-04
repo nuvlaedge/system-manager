@@ -24,7 +24,7 @@ release.properties
 versions.sh
 code/test
 code/templates/docker_stats.html
-
+venv
 # Generated on dev mode by the UI part
 raw-metadata-str*.xml
 
