@@ -821,7 +821,7 @@ class Supervise(object):
                 # .. just start the container
                 if status == 'created':
                     try:
-                        self.docker_client.start()
+                        self.docker_client.api.start(container.id)
                         continue
                     except docker.errors.APIError as e:
                         self.log.error(f'Cannot resume container {container.name}. Reason: {str(e)}')
@@ -844,6 +844,6 @@ class Supervise(object):
                         # at this stage we simply need to try to restart it
                         try:
                             self.log.info(f'Container {container.name} exited and is not restarting. Forcing restart')
-                            container.restart()
+                            self.docker_client.api.restart(container.id)
                         except docker.errors.APIError as e:
                             self.log.error(f'Cannot heal container {container.name}. Reason: {str(e)}')
