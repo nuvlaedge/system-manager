@@ -718,7 +718,10 @@ class Supervise(object):
         }
 
         self.log.info(f'Launching global network propagation service {utils.overlay_network_service}')
-        cmd = f"sh -c 'echo \"{json.dumps(self.docker_client.info(), indent=2)}\" && sleep 300'"
+        cmd = ["sh",
+               "-c",
+               f"echo -e '''{json.dumps(self.docker_client.info(), indent=2)}''' && sleep 300"]
+
         self.docker_client.services.create('alpine',
                                            command=cmd,
                                            container_labels=labels,
