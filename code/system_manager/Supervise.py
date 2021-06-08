@@ -846,7 +846,18 @@ class Supervise(object):
 
                         # at this stage we simply need to try to restart it
                         try:
-                            self.log.info(f'Container {container.name} exited and is not restarting. Forcing restart')
+                            self.log.warning(f'Container {container.name} exited. Forcing restart')
                             self.docker_client.api.restart(container.id)
                         except docker.errors.APIError as e:
-                            self.log.error(f'Cannot heal container {container.name}. Reason: {str(e)}')
+                            self.log.error(f'Failed to heal container {container.name}. Reason: {str(e)}')
+                            self.operational_status.append((utils.status_degraded, f'Container {container.name} is down'))
+                            if any(w in str(e) for w in ['NotFound', 'network', 'not found']):
+                                self.log.warning(f'Trying to reset network config for {container.name}')
+                                try:
+                                    self.docker_client.api.disconnect_container_from_network(container.id,
+                                                                                             utils.nuvlabox_shared_net)
+                                except docker.errors.APIError as e2:
+                                    err_msg = f'Malfunctioning network for {container.name}: {str(e2)}'
+                                    self.log.error(f'Cannot recover {container.name}. {err_msg}')
+                                    self.operational_status.append((utils.status_degraded, err_msg))
+
