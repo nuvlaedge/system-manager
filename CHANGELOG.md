@@ -1,4 +1,10 @@
 # Changelog
+## [2.0.1] - 2021-06-11
+### Added
+### Changed
+ - fix self-healing of the agent component
+ - fix quoting for ack service
+ - use low level Docker api for getting container info
 ## [2.0.0] - 2021-04-30
 ### Added 
  - support for clustering 
