@@ -1,4 +1,4 @@
-FROM python:3.9-alpine AS pyopenssl-builder
+FROM python:3.9-alpine3.12 AS pyopenssl-builder
 
 RUN apk update && apk add --no-cache gcc musl-dev openssl-dev openssl libffi-dev
 
@@ -9,7 +9,7 @@ RUN pip install -r requirements.base.txt
 
 # ---
 
-FROM python:3.9-alpine
+FROM python:3.9-alpine3.12
 
 ARG GIT_BRANCH
 ARG GIT_COMMIT_ID
