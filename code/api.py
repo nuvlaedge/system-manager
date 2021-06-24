@@ -39,7 +39,7 @@ def dashboard():
 
     docker_info = app.config["supervisor"].get_docker_info()
     nuvlabox_status = app.config["supervisor"].get_nuvlabox_status()
-    docker_stats = app.config["supervisor"].reader(utils.docker_stats_html_file)
+    docker_stats = app.config["supervisor"].reader(utils.container_stats_html_file)
 
     # net_stats is provided in the form of {"iface1": {"rx_bytes": X, "tx_bytes": Y}, "iface2": ...}
     # Reference: nuvlabox/agent

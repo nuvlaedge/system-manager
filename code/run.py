@@ -8,7 +8,6 @@ checks requirements and supervises all internal components of the NuvlaBox
 Arguments:
 
 """
-import requests
 import sys
 import os
 import subprocess
@@ -34,7 +33,7 @@ class GracefulShutdown:
 
     def exit_gracefully(self, signum, frame):
         log.info(f'Starting on-stop graceful shutdown of the NuvlaBox...')
-        self_sup.launch_nuvlabox_on_stop()
+        self_sup.container_runtime.launch_nuvlabox_on_stop(self_sup.on_stop_docker_image)
         sys.exit(0)
 
 
@@ -48,11 +47,9 @@ def run_requirements_check():
         system_requirements = MinReq.SystemRequirements()
         software_requirements = MinReq.SoftwareRequirements()
 
-        if not software_requirements.check_docker_requirements() or not system_requirements.check_all_hw_requirements():
+        if not software_requirements.check_sw_requirements() or not system_requirements.check_all_hw_requirements():
             log.error("System does not meet the minimum requirements!")
             utils.set_operational_status(utils.status_degraded)
-            # utils.cleanup(utils.list_internal_containers(), utils.docker_id)
-            # sys.exit(1)
         else:
             utils.set_operational_status(utils.status_operational)
     else:

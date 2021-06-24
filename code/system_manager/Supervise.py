@@ -3,19 +3,18 @@
 
 """ Contains the supervising class for all NuvlaBox Engine components """
 
-import docker
+# import docker
 import json
 import time
 import os
 import glob
 import OpenSSL
-import random
 import requests
 import socket
-import string
 from datetime import datetime
 from system_manager.common.logging import logging
 from system_manager.common import utils
+from system_manager.common.ContainerRuntime import Containers
 
 
 class ClusterNodeCannotManageDG(Exception):
@@ -30,7 +29,7 @@ def cluster_workers_cannot_manage(func):
     return wrapper
 
 
-class Supervise(object):
+class Supervise(Containers):
     """ The Supervise class contains all the methods and
     definitions for making sure the NuvlaBox Engine is running smoothly,
     including all methods for dealing with system disruptions and
@@ -40,14 +39,16 @@ class Supervise(object):
     def __init__(self):
         """ Constructs the Supervise object """
 
-        self.docker_client = docker.from_env()
+        # self.docker_client = docker.from_env()
         self.log = logging.getLogger(__name__)
+        super().__init__(self.log)
+
         self.system_usages = {}
-        self.on_stop_docker_image = self.infer_on_stop_docker_image()
+        self.on_stop_docker_image = self.container_runtime.infer_on_stop_docker_image()
         self.data_gateway_image = os.getenv('NUVLABOX_DATA_GATEWAY_IMAGE', 'eclipse-mosquitto:1.6.12')
         self.data_gateway_object = None
         self.data_gateway_name = 'data-gateway'
-        self.i_am_manager = self.is_swarm_enabled = self.node = None
+        self.i_am_manager = self.is_cluster_enabled = self.node = None
         self.operational_status = []
         self.agent_dg_failed_connection = 0
         self.lost_quorum_hint = 'possible that too few managers are online'
@@ -70,122 +71,25 @@ class Supervise(object):
         with open("{}/{}".format(utils.html_templates, file)) as r:
             return r.read()
 
-    def launch_nuvlabox_on_stop(self):
-        """
-        Launches the on-stop graceful shutdown
-
-        :return:
-        """
-
-        error_msg = 'Cannot launch NuvlaBox On-Stop graceful shutdown. ' \
-                    'If decommissioning, container resources might be left behind'
-
-        if not self.on_stop_docker_image:
-            self.on_stop_docker_image = self.infer_on_stop_docker_image()
-            if not self.on_stop_docker_image:
-                self.log.warning(f'{error_msg}: Docker image not found for NuvlaBox On-Stop service')
-                return
-
-        try:
-            myself = self.docker_client.containers.get(socket.gethostname())
-            myself_labels = myself.labels
-        except docker.errors.NotFound:
-            self.log.warning(f'Cannot find this container by hostname: {socket.gethostname()}')
-            myself_labels = {}
-
-        project_name = myself_labels.get('com.docker.compose.project')
-
-        random_identifier = ''.join(random.choices(string.ascii_uppercase, k=5))
-        now = datetime.strftime(datetime.utcnow(), '%d-%m-%Y_%H%M%S')
-        on_stop_container_name = f"nuvlabox-on-stop-{random_identifier}-{now}"
-
-        label = {
-            "nuvlabox.on-stop": "True"
-        }
-        self.docker_client.containers.run(self.on_stop_docker_image,
-                                          name=on_stop_container_name,
-                                          labels=label,
-                                          environment=[f'PROJECT_NAME={project_name}'],
-                                          volumes={
-                                              '/var/run/docker.sock': {
-                                                  'bind': '/var/run/docker.sock',
-                                                  'mode': 'ro'
-                                              }
-                                          },
-                                          detach=True)
-
-    def infer_on_stop_docker_image(self):
-        """
-        On stop, the SM launches the NuvlaBox cleaner, called on-stop, and which is also launched in paused mode
-        at the beginning of the NB lifetime.
-
-        Here, we find that service and infer its Docker image for later usage
-
-        :return: image name (str)
-        """
-
-        on_stop_container_name = "nuvlabox-on-stop"
-
-        try:
-            container = self.docker_client.containers.get(on_stop_container_name)
-        except docker.errors.NotFound:
-            # default to dev image
-            return 'nuvladev/on-stop:main'
-        except Exception as e:
-            self.log.error(f"Unable to search for container {on_stop_container_name}. Reason: {str(e)}")
-            return None
-
-        try:
-            if container.status.lower() == "paused":
-                return container.attrs['Config']['Image']
-        except (AttributeError, KeyError) as e:
-            self.log.error(f'Unable to infer Docker image for {on_stop_container_name}: {str(e)}')
-
-        return None
-
     def classify_this_node(self):
-        swarm_info = self.get_docker_info().get('Swarm', {})
+        # is it running in cluster mode?
+        node_id = self.container_runtime.get_node_id()
+        is_cluster_enabled = self.container_runtime.is_coe_enabled(check_local_node_state=True)
 
-        # is it running in Swarm mode?
-        node_id = swarm_info.get('NodeID')
-        # might have a Node ID but still, LocalNodeState might be inactive
-        local_node_state = swarm_info.get('LocalNodeState', 'inactive')
-        if not node_id or local_node_state.lower() == "inactive":
-            self.i_am_manager = self.is_swarm_enabled = False
+        if not node_id or not is_cluster_enabled:
+            self.i_am_manager = self.is_cluster_enabled = False
             return
 
-        # if it got here, there Swarm is active
-        self.is_swarm_enabled = True
+        # if it got here, there cluster is active
+        self.is_cluster_enabled = True
 
-        remote_managers = swarm_info.get('RemoteManagers')
-        managers = []
-        if remote_managers:
-            managers = [rm.get('NodeID') for rm in remote_managers]
+        managers = self.container_runtime.get_cluster_managers()
         self.i_am_manager = True if node_id in managers else False
 
         if self.i_am_manager:
-            try:
-                self.node = self.docker_client.nodes.get(node_id)
-            except docker.errors.APIError as e:
-                if self.lost_quorum_hint in str(e):
-                    # quorum is lost
-                    msg = 'Quorum is lost. This node will not support Service and Cluster management'
-                    self.log.warning(msg)
-                    err_msg = swarm_info.get('Error') if swarm_info.get('Error') else msg
-                    self.operational_status.append((utils.status_degraded, err_msg))
-
-                return
-            try:
-                node_spec = self.node.attrs['Spec']
-            except KeyError as e:
-                self.log.error(f'Cannot get node Spec for {node_id}: {str(e)}')
-                return
-            node_labels = node_spec.get('Labels', {})
-            if utils.node_label_key not in node_labels.keys() and isinstance(node_spec, dict):
-                node_labels[utils.node_label_key] = 'True'
-                node_spec['Labels'] = node_labels
-                self.log.info(f'Updating this node ({node_id}) with label {utils.node_label_key}')
-                self.node.update(node_spec)
+            _update_label_success, err = self.container_runtime.set_nuvlabox_node_label(node_id)
+            if err:
+                self.operational_status.append((utils.status_degraded, err))
 
     def get_nuvlabox_status(self):
         """ Re-uses the consumption metrics from NuvlaBox Agent """
@@ -249,18 +153,18 @@ class Supervise(object):
         :returns timestamp for when the logs were fetched
         """
 
-        nb_containers = utils.list_internal_containers()
+        nb_components = self.container_runtime.list_internal_components()
         logs = ''
-        for container in nb_containers:
-            container_log = self.docker_client.api.logs(container.id,
-                                                        timestamps=True,
-                                                        tail=tail,
-                                                        since=since).decode('utf-8')
+        for component in nb_components:
+            component_logs = self.container_runtime.fetch_container_logs(component,
+                                                                         since=since,
+                                                                         tail=tail)
 
-            if container_log:
-                log_id = '<b style="color: #{};">{} |</b> '.format(container.id[:6], container.name)
+            if component_logs:
+                log_id = '<b style="color: #{};">{} |</b> '.format(self.container_runtime.get_component_id(component)[:6],
+                                                                   self.container_runtime.get_component_name(component))
                 logs += '{} {}'.format(log_id,
-                                       '<br/>{}'.format(log_id).join(container_log.splitlines()))
+                                       '<br/>{}'.format(log_id).join(component_logs.splitlines()))
                 logs += '<br/>'
         return logs, int(time.time())
 
@@ -284,8 +188,8 @@ class Supervise(object):
                 ' </thead>' \
                 ' <tbody>'.format(datetime.utcnow())
 
-        if os.path.exists(utils.docker_stats_json_file):
-            with open(utils.docker_stats_json_file) as cstats:
+        if os.path.exists(utils.container_stats_json_file):
+            with open(utils.container_stats_json_file) as cstats:
                 container_stats = json.load(cstats)
 
             for container_stat in container_stats:
@@ -311,7 +215,7 @@ class Supervise(object):
 
         stats += ' </tbody>' \
                  '</table>'
-        self.printer(stats, utils.docker_stats_html_file)
+        self.printer(stats, utils.container_stats_html_file)
 
     def is_cert_rotation_needed(self):
         """ Checks whether the Docker and NB API certs are about to expire """
@@ -748,7 +652,7 @@ class Supervise(object):
         """
 
         # reload the docker client just in case
-        self.docker_client = docker.from_env()
+        # self.docker_client = docker.from_env()
 
         try:
             myself = self.docker_client.containers.get(socket.gethostname())
