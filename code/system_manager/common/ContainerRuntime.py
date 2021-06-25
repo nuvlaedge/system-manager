@@ -1,5 +1,6 @@
 import os
 import random
+import requests
 import socket
 import string
 import time
@@ -133,6 +134,43 @@ class ContainerRuntime(ABC):
         """
         pass
 
+    @abstractmethod
+    def restart_credentials_manager(self):
+        """ Restarts the NB component responsible for managing the API credentials
+        """
+        pass
+
+    @abstractmethod
+    def find_nuvlabox_agent_container(self):
+        """ Finds and returns the NuvlaBox component
+        """
+        pass
+
+    def test_agent_connection(self, url):
+        """ Check if the Agent API is alive
+        """
+        try:
+            r = requests.get(url)
+        except requests.exceptions.ConnectionError as e:
+            msg = f'Agent API connection error: {str(e)}'
+            self.logging.warning(msg)
+
+            return None, msg
+
+        return r, None
+
+    @abstractmethod
+    def list_all_containers_in_this_node(self):
+        """ List all the containers running in this node
+        """
+        pass
+
+    @abstractmethod
+    def count_images_in_this_host(self):
+        """ Counts the number of Docker images in this host
+        """
+        pass
+
 
 class Kubernetes(ContainerRuntime):
     """
@@ -149,6 +187,10 @@ class Kubernetes(ContainerRuntime):
         self.host_node_name = os.getenv('MY_HOST_NODE_NAME')
         self.minimum_major_version = '1'
         self.minimum_minor_version = '20'
+        self.credentials_manager_component = 'kubernetes-credentials-manager'
+        self.orchestrator = 'kubernetes'
+        self.agent_dns = f'agent.{self.namespace}'
+        self.my_component_name = 'nuvlabox-engine-core'
 
     def list_internal_components(self, base_label=utils.base_label):
         # for k8s, components = pods
@@ -242,7 +284,48 @@ class Kubernetes(ContainerRuntime):
         return errors, warnings
 
     def set_nuvlabox_node_label(self, node_id=None):
-        # self.get_node_info().
+        # no need to do this in k8s
+        return True, None
+
+    def restart_credentials_manager(self):
+        # the credentials manager is a container running in the nuvlabox-engine-core pod, alongside other containers,
+        # and thus cannot be restarted individually.
+
+        # we cannot restart the whole pod because that would bring all containers down, including this one
+        # so we just wait for Kubelet to automatically restart it
+        self.logging.info(f'The {self.credentials_manager_component} will be automatically restarted by Kubelet '
+                          f'within the next 5 minutes')
+
+        return
+
+    def find_nuvlabox_agent_container(self):
+        search_label = f'component={self.my_component_name}'
+        main_pod = self.client.list_namespaced_pod(namespace=self.namespace,
+                                                   label_selector=search_label).items
+
+        if len(main_pod) == 0:
+            msg = f'Can not find main NuvlaBox Engine pod with label {search_label}'
+            self.logging.error(msg)
+            return None, msg
+        else:
+            this_pod = main_pod[0]
+
+        for container in this_pod.status.container_statuses:
+            if container.name == 'agent':
+                return container, None
+
+    def list_all_containers_in_this_node(self):
+        pods_here = self.client.list_pod_for_all_namespaces(field_selector=f'spec.nodeName={self.host_node_name}').items
+
+        containers = []
+        for pod in pods_here:
+            containers += pod.status.container_statuses
+            
+        return containers
+
+    def count_images_in_this_host(self):
+        return len(self.get_node_info().status.images)
+
 
 class Docker(ContainerRuntime):
     """
@@ -254,6 +337,10 @@ class Docker(ContainerRuntime):
         self.client = docker.from_env()
         self.minimum_version = 18
         self.lost_quorum_hint = 'possible that too few managers are online'
+        self.credentials_manager_component = "compute-api"
+        self.orchestrator = 'docker'
+        self.agent_dns = 'agent'
+        self.my_component_name = 'system-manager'
 
     def list_internal_components(self, base_label=utils.base_label):
         return self.client.containers.list(filters={"label": base_label})
@@ -384,6 +471,7 @@ class Docker(ContainerRuntime):
     def set_nuvlabox_node_label(self, node_id=None):
         if not node_id:
             node_id = self.get_node_id()
+        default_err_msg = f'Unable to set NuvlaBox node label for {node_id}'
 
         try:
             node = self.client.nodes.get(node_id)
@@ -396,12 +484,12 @@ class Docker(ContainerRuntime):
                 err_msg = err[0] if err else msg
                 return False, err_msg
 
-            return False, None
+            return False, default_err_msg
         try:
             node_spec = node.attrs['Spec']
         except KeyError as e:
             self.logging.error(f'Cannot get node Spec for {node_id}: {str(e)}')
-            return False, None
+            return False, default_err_msg
 
         node_labels = node_spec.get('Labels', {})
         if utils.node_label_key not in node_labels.keys() and isinstance(node_spec, dict):
@@ -411,6 +499,33 @@ class Docker(ContainerRuntime):
             node.update(node_spec)
 
         return True, None
+
+    def restart_credentials_manager(self):
+        try:
+            self.client.api.restart(self.credentials_manager_component, timeout=30)
+        except docker.errors.NotFound:
+            self.logging.exception(f"Container {self.credentials_manager_component} is not running. Nothing to do...")
+
+        return
+
+    def find_nuvlabox_agent_container(self):
+        agent_api_id_url = f'http://{self.agent_dns}/api/agent-container-id'
+        try:
+            agent_container_id = requests.get(agent_api_id_url)
+        except requests.exceptions.ConnectionError:
+            self.logging.warning('Agent API is not ready yet. Trying again later')
+
+            return None, 'Agent API is not available'
+
+        agent_container_id.raise_for_status()
+
+        return self.client.containers.get(agent_container_id.json())
+
+    def list_all_containers_in_this_node(self):
+        return self.client.containers.list(all=True)
+
+    def count_images_in_this_host(self):
+        return self.get_node_info().get("Images")
 
 
 # --------------------

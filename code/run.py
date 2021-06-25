@@ -13,7 +13,6 @@ import os
 import subprocess
 import system_manager.Requirements as MinReq
 import signal
-import time
 from system_manager.common import utils
 from system_manager.common.logging import logging
 from system_manager.Supervise import Supervise
@@ -80,7 +79,7 @@ while True:
     if not api or not api.pid:
         api = subprocess.Popen(api_launch.split())
 
-    self_sup.write_docker_stats_table_html()
+    self_sup.write_container_stats_table_html()
 
     # refresh this node's status, to capture any changes in the COE/Cluster configuration
     self_sup.classify_this_node()
@@ -90,11 +89,15 @@ while True:
         log.info("Rotating NuvlaBox certificates...")
         self_sup.request_rotate_certificates()
 
-    self_sup.check_nuvlabox_connectivity()
+    if self_sup.container_runtime.orchestrator != 'kubernetes':
+        # in k8s there are no switched from uncluster - cluster, so there's no need for connectivity check
+        self_sup.check_nuvlabox_docker_connectivity()
 
-    self_sup.manage_data_gateway()
+        # the Data Gateway comes out of the box for k8s installations
+        self_sup.manage_docker_data_gateway()
 
-    self_sup.healer()
+        # in k8s everything runs as part of a Dep (restart policies are in place), so there's nothing to fix
+        self_sup.docker_container_healer()
 
     statuses = [s[0] for s in self_sup.operational_status]
     status_notes = [s[-1] for s in self_sup.operational_status]

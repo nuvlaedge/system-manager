@@ -3,7 +3,7 @@
 
 """ Contains the supervising class for all NuvlaBox Engine components """
 
-# import docker
+import docker
 import json
 import time
 import os
@@ -109,16 +109,6 @@ class Supervise(Containers):
 
         return usages
 
-    def get_docker_disk_usage(self):
-        """ Runs docker system df and gets disk usage """
-
-        return round(float(self.docker_client.df()["LayersSize"] / 1000 / 1000 / 1000), 2)
-
-    def get_docker_info(self):
-        """ Gets everything from the Docker client info """
-
-        return self.docker_client.info()
-
     def get_nuvlabox_peripherals(self):
         """ Reads the list of peripherals discovered by the other NuvlaBox microservices,
         via the shared volume folder
@@ -168,11 +158,11 @@ class Supervise(Containers):
                 logs += '<br/>'
         return logs, int(time.time())
 
-    def write_docker_stats_table_html(self):
-        """ Run docker stats """
+    def write_container_stats_table_html(self):
+        """ Run container stats """
 
         stats = '<table class="table table-striped table-hover mt-5 mr-auto">' \
-                ' <caption>Docker Stats, last update: {} UTC</caption>' \
+                ' <caption>Container Stats, last update: {} UTC</caption>' \
                 ' <thead class="bg-secondary text-light">' \
                 '  <tr>' \
                 '    <th scope="col">CONTAINER ID</th>' \
@@ -218,7 +208,7 @@ class Supervise(Containers):
         self.printer(stats, utils.container_stats_html_file)
 
     def is_cert_rotation_needed(self):
-        """ Checks whether the Docker and NB API certs are about to expire """
+        """ Checks whether the API certs are about to expire """
 
         # certificates to be checked for expiration dates:
         check_expiry_date_on = ["ca.pem", "server-cert.pem", "cert.pem"]
@@ -251,19 +241,18 @@ class Supervise(Containers):
         return False
 
     def request_rotate_certificates(self):
-        """ Deletes the existing .tls sync file from the shared volume and restarts the compute-api container
+        """ Deletes the existing .tls sync file from the shared volume
 
-        This restart will force the regeneration of the certificates and consequent recommissioning """
+        By doing this, a new set of credentials shall be automatically created either by the compute-api or the
+        kubernetes-credential-manager
 
-        compute_api_container = "compute-api"
+        This rotation will force the regeneration of the certificates and consequent recommissioning """
 
         if os.path.isfile(utils.tls_sync_file):
             os.remove(utils.tls_sync_file)
-            self.log.info(f"Removed {utils.tls_sync_file}. Restarting {compute_api_container} container")
-            try:
-                self.docker_client.api.restart(compute_api_container, timeout=30)
-            except docker.errors.NotFound:
-                self.log.exception(f"Container {compute_api_container} is not running. Nothing to do...")
+            self.log.info(f"Removed {utils.tls_sync_file}. "
+                          f"Restarting {self.container_runtime.credentials_manager_component}")
+            self.container_runtime.restart_credentials_manager()
 
     @cluster_workers_cannot_manage
     def launch_data_gateway(self, name: str) -> bool:
@@ -284,43 +273,43 @@ class Supervise(Containers):
         }
         try:
             cmd = "sh -c 'sleep 10 && /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf'"
-            if self.is_swarm_enabled and self.i_am_manager:
-                self.docker_client.services.create(self.data_gateway_image,
-                                                   name=name,
-                                                   hostname=name,
-                                                   labels=labels,
-                                                   init=True,
-                                                   container_labels=labels,
-                                                   networks=[utils.nuvlabox_shared_net],
-                                                   constraints=[
-                                                       'node.role==manager',
-                                                       f'node.labels.{utils.node_label_key}==True'
-                                                   ],
-                                                   command=cmd
-                                                   )
-            elif not self.is_swarm_enabled:
+            if self.is_cluster_enabled and self.i_am_manager:
+                self.container_runtime.client.services.create(self.data_gateway_image,
+                                                              name=name,
+                                                              hostname=name,
+                                                              labels=labels,
+                                                              init=True,
+                                                              container_labels=labels,
+                                                              networks=[utils.nuvlabox_shared_net],
+                                                              constraints=[
+                                                                  'node.role==manager',
+                                                                  f'node.labels.{utils.node_label_key}==True'
+                                                              ],
+                                                              command=cmd
+                                                              )
+            elif not self.is_cluster_enabled:
                 # Docker standalone mode
-                self.docker_client.containers.run(self.data_gateway_image,
-                                                  name=name,
-                                                  hostname=name,
-                                                  init=True,
-                                                  detach=True,
-                                                  labels=labels,
-                                                  restart_policy={"Name": "always"},
-                                                  oom_score_adj=-900,
-                                                  network=utils.nuvlabox_shared_net,
-                                                  command=cmd
-                                                  )
+                self.container_runtime.client.containers.run(self.data_gateway_image,
+                                                             name=name,
+                                                             hostname=name,
+                                                             init=True,
+                                                             detach=True,
+                                                             labels=labels,
+                                                             restart_policy={"Name": "always"},
+                                                             oom_score_adj=-900,
+                                                             network=utils.nuvlabox_shared_net,
+                                                             command=cmd
+                                                             )
         except docker.errors.APIError as e:
             try:
                 if '409' in str(e):
                     # already exists
                     self.log.warning(f'Despite the request to launch the Data Gateway, '
                                      f'{name} seems to exist already. Forcing its restart just in case')
-                    if self.is_swarm_enabled and self.i_am_manager:
-                        self.docker_client.services.get(name).force_update()
+                    if self.is_cluster_enabled and self.i_am_manager:
+                        self.container_runtime.client.services.get(name).force_update()
                     else:
-                        self.docker_client.containers.get(name).restart()
+                        self.container_runtime.client.containers.get(name).restart()
 
                     return True
                 else:
@@ -336,16 +325,12 @@ class Supervise(Containers):
         :return: agent container object or None
         """
 
-        try:
-            agent_container_id = requests.get('http://agent/api/agent-container-id')
-        except requests.exceptions.ConnectionError:
-            self.log.warning('Agent API is not ready yet. Trying again later')
-            self.operational_status.append((utils.status_degraded, 'Agent API is not available'))
+        container, err = self.container_runtime.find_nuvlabox_agent_component()
+
+        if err:
+            self.operational_status.append((utils.status_degraded, err))
             return None
-
-        agent_container_id.raise_for_status()
-
-        return self.docker_client.containers.get(agent_container_id.json())
+        return container
 
     def check_dg_network(self, target_network: docker.DockerClient.networks):
         """
@@ -360,21 +345,21 @@ class Supervise(Containers):
             return
 
         try:
-            if self.is_swarm_enabled:
+            if self.is_cluster_enabled:
                 current_networks = [vip.get('NetworkID') for vip in self.data_gateway_object.attrs.get('Endpoint', {}).get('VirtualIPs', [])]
             else:
                 current_networks = self.data_gateway_object.attrs.get('NetworkSettings', {}).get('Networks', {}).keys()
 
             if target_network.name not in current_networks and target_network.id not in current_networks:
                 self.log.info(f'Adding network {target_network.name} to {self.data_gateway_object.name}')
-                if self.is_swarm_enabled:
+                if self.is_cluster_enabled:
                     self.data_gateway_object.update(networks=[target_network.name] + current_networks)
                 else:
                     target_network.connect(self.data_gateway_object.name)
         except Exception as e:
             self.log.error(f'Cannot add network {target_network.name} to DG {self.data_gateway_object.name}: {str(e)}')
 
-    def manage_data_gateway(self):
+    def manage_docker_data_gateway(self):
         """ Sets the DG service.
 
         If we need to start or restart the DG or any of its components, we always "return" and resume the DG setup
@@ -384,11 +369,11 @@ class Supervise(Containers):
         """
 
         # ## 1: if the DG network already exists, then chances are that the DG has already been deployed
-        dg_network = self.find_network(utils.nuvlabox_shared_net)
+        dg_network = self.find_docker_network(utils.nuvlabox_shared_net)
         if not dg_network:
             # network doesn't exist, so let's create it as well
             try:
-                self.setup_network(utils.nuvlabox_shared_net)
+                self.setup_docker_network(utils.nuvlabox_shared_net)
             except ClusterNodeCannotManageDG:
                 # this node can't setup networks
                 # However, the network might already exist, we simply don't see it. Try to connect agent to it anyway
@@ -399,16 +384,16 @@ class Supervise(Containers):
         else:
             # make sure the network driver makes sense, to avoid having a bridge network on a Swarm node
             dg_net_driver = dg_network.attrs.get('Driver')
-            if dg_net_driver.lower() == 'bridge' and self.is_swarm_enabled:
-                self.destroy_network(dg_network)
+            if dg_net_driver.lower() == 'bridge' and self.is_cluster_enabled:
+                self.destroy_docker_network(dg_network)
                 # if swarm is enabled, a container-based data-gateway doesn't make sense
                 try:
-                    self.docker_client.containers.get(self.data_gateway_name)
+                    self.container_runtime.client.get(self.data_gateway_name)
                 except docker.errors.NotFound:
                     pass
                 else:
                     try:
-                        self.docker_client.api.remove_container(self.data_gateway_name, force=True)
+                        self.container_runtime.client.api.remove_container(self.data_gateway_name, force=True)
                     except Exception as e:
                         self.log.error(f'Could not remove old {self.data_gateway_name} container: {str(e)}')
                 # reset cycle cause network needs to be recreated
@@ -446,12 +431,14 @@ class Supervise(Containers):
 
         # ## 3: finally, connect this node's Agent container (+data source containers) to DG
         agent_container = self.find_nuvlabox_agent()
-        data_source_containers = self.docker_client.containers.list(filters={'label': 'nuvlabox.data-source-container'})
+        data_source_containers = self.container_runtime.client.containers.list(filters={
+            'label': 'nuvlabox.data-source-container'
+        })
 
         if agent_container:
             agent_container_id = agent_container.id
         else:
-            self.operational_status.append((utils.status_degraded, 'NuvlaBox Agent is dead'))
+            self.operational_status.append((utils.status_degraded, 'NuvlaBox Agent is down'))
             return
 
         connecting_containers = [agent_container] + data_source_containers
@@ -461,7 +448,7 @@ class Supervise(Containers):
                 self.log.info(f'Connecting ({ccont.name}) '
                               f'to network {utils.nuvlabox_shared_net}')
                 try:
-                    self.docker_client.api.connect_container_to_network(ccont.id, utils.nuvlabox_shared_net)
+                    self.container_runtime.client.api.connect_container_to_network(ccont.id, utils.nuvlabox_shared_net)
                 except Exception as e:
                     if "notfound" in str(e).replace(' ', '').lower():
                         # nothing to do. Network doesn't exist at all
@@ -478,13 +465,10 @@ class Supervise(Containers):
 
                     self.log.warning(f'{err_msg}: {str(e)}')
 
-        # test agent connection with data-gateway
-        try:
-            r = requests.get('http://agent/api/agent-container-id')
-        except requests.exceptions.ConnectionError as e:
-            msg = f'Agent API connection error: {str(e)}'
-            self.log.warning(msg)
-            self.operational_status.append((utils.status_degraded, msg))
+        agent_query_url = f'http://{self.container_runtime.agent_dns}/api/healthcheck'
+        r, err = self.container_runtime.test_agent_connection(agent_query_url)
+        if not r and err:
+            self.operational_status.append((utils.status_degraded, err))
             return
 
         if r.status_code == 404:
@@ -494,7 +478,7 @@ class Supervise(Containers):
             # do something after 3 reports
             self.log.warning('Agent seems unable to reach the Data Gateway. Restarting the Data Gateway')
             self.agent_dg_failed_connection = 0
-            if self.is_swarm_enabled and self.i_am_manager:
+            if self.is_cluster_enabled and self.i_am_manager:
                 self.data_gateway_object.force_update()
             else:
                 self.data_gateway_object.restart()
@@ -502,12 +486,12 @@ class Supervise(Containers):
     @cluster_workers_cannot_manage
     def find_data_gateway(self, name: str) -> bool:
         try:
-            if self.is_swarm_enabled and self.i_am_manager:
+            if self.is_cluster_enabled and self.i_am_manager:
                 # in swarm
-                self.data_gateway_object = self.docker_client.services.get(name)
-            elif not self.is_swarm_enabled and not self.i_am_manager:
+                self.data_gateway_object = self.container_runtime.client.services.get(name)
+            elif not self.is_cluster_enabled and not self.i_am_manager:
                 # in single Docker machine
-                self.data_gateway_object = self.docker_client.containers.get(name)
+                self.data_gateway_object = self.container_runtime.client.containers.get(name)
 
             return True
         except (docker.errors.NotFound, docker.errors.APIError) as e:
@@ -515,7 +499,7 @@ class Supervise(Containers):
             self.data_gateway_object = None
             return False
 
-    def find_network(self, network_name: str) -> object or None:
+    def find_docker_network(self, network_name: str) -> object or None:
         """
         Finds a network by name
 
@@ -523,20 +507,20 @@ class Supervise(Containers):
         :return: Docker network object or None
         """
         try:
-            return self.docker_client.networks.get(network_name)
+            return self.container_runtime.client.networks.get(network_name)
         except docker.errors.NotFound:
             self.log.info(f'Shared network {network_name} not found')
 
             return None
 
-    def destroy_network(self, network: object):
+    def destroy_docker_network(self, network: docker.DockerClient.networks):
         """
         Deletes a network locally by disconnecting it from any container in use, and removing it
 
         :param network: Docker network object
         :return:
         """
-        self.log.warning(f'About to destroy network {network.name}')
+        self.log.warning(f'About to destroy Docker network {network.name}')
 
         containers_attached = network.attrs.get('Containers')
 
@@ -553,7 +537,7 @@ class Supervise(Containers):
         network.remove()
 
     @cluster_workers_cannot_manage
-    def setup_network(self, net_name: str) -> bool:
+    def setup_docker_network(self, net_name: str) -> bool:
         """
         Creates a Docker network.
         If driver is overlay, then the network is also attachable and a propagation global service is also launched
@@ -568,23 +552,23 @@ class Supervise(Containers):
         }
         self.log.info(f'Creating Data Gateway network {net_name}')
         try:
-            if not self.is_swarm_enabled:
+            if not self.is_cluster_enabled:
                 # standalone Docker nodes create bridge network
-                self.docker_client.networks.create(net_name,
-                                                   labels=labels)
+                self.container_runtime.client.networks.create(net_name,
+                                                              labels=labels)
                 return True
-            elif self.is_swarm_enabled and self.i_am_manager:
+            elif self.is_cluster_enabled and self.i_am_manager:
                 # Swarm managers create overlay network
-                self.docker_client.networks.create(net_name,
-                                                   driver="overlay",
-                                                   attachable=True,
-                                                   options={"encrypted": "True"},
-                                                   labels=labels)
+                self.container_runtime.client.networks.create(net_name,
+                                                              driver="overlay",
+                                                              attachable=True,
+                                                              options={"encrypted": "True"},
+                                                              labels=labels)
         except docker.errors.APIError as e:
             if '409' in str(e):
                 # already exists
                 self.log.warning(f'Unexpected conflict (moving on): {str(e)}')
-                if not self.is_swarm_enabled:
+                if not self.is_cluster_enabled:
                     # in this case there's nothing else to do
                     return True
             else:
@@ -594,7 +578,7 @@ class Supervise(Containers):
         # if we got here, then we are handling an overlay network, and thus we need the propagation service
         ack_service = None
         try:
-            ack_service = self.docker_client.services.get(utils.overlay_network_service)
+            ack_service = self.container_runtime.client.services.get(utils.overlay_network_service)
         except docker.errors.NotFound:
             # good, it doesn't exist
             pass
@@ -624,22 +608,22 @@ class Supervise(Containers):
         self.log.info(f'Launching global network propagation service {utils.overlay_network_service}')
         cmd = ["sh",
                "-c",
-               f"echo -e '''{json.dumps(self.docker_client.info(), indent=2)}''' && sleep 300"]
+               f"echo -e '''{json.dumps(self.container_runtime.get_node_info(), indent=2)}''' && sleep 300"]
 
-        self.docker_client.services.create('alpine',
-                                           command=cmd,
-                                           container_labels=labels,
-                                           labels=labels,
-                                           mode="global",
-                                           name=utils.overlay_network_service,
-                                           networks=[net_name],
-                                           restart_policy=restart_policy,
-                                           stop_grace_period=3,
-                                           )
+        self.container_runtime.client.services.create('alpine',
+                                                      command=cmd,
+                                                      container_labels=labels,
+                                                      labels=labels,
+                                                      mode="global",
+                                                      name=utils.overlay_network_service,
+                                                      networks=[net_name],
+                                                      restart_policy=restart_policy,
+                                                      stop_grace_period=3,
+                                                      )
 
         return True
 
-    def check_nuvlabox_connectivity(self):
+    def check_nuvlabox_docker_connectivity(self):
         """
         Makes sure all NBE containers are connected to the original bridge network (at least)
 
@@ -651,11 +635,8 @@ class Supervise(Containers):
         :return:
         """
 
-        # reload the docker client just in case
-        # self.docker_client = docker.from_env()
-
         try:
-            myself = self.docker_client.containers.get(socket.gethostname())
+            myself = self.container_runtime.client.containers.get(socket.gethostname())
         except docker.errors.NotFound:
             self.log.error(f'Cannot find this container by hostname: {socket.gethostname()}. Cannot proceed')
             self.operational_status.append((utils.status_degraded, 'System Manager container lookup error'))
@@ -674,10 +655,14 @@ class Supervise(Containers):
                 return
 
         original_project_label = f'com.docker.compose.project={project_name}'
-        original_nb_containers = self.docker_client.containers.list(filters={'label': original_project_label})
-        self.nuvlabox_containers = self.docker_client.containers.list(filters={'label': original_project_label}, all=True)
-        original_nb_internal_network = self.docker_client.networks.list(filters={'label': original_project_label,
-                                                                                 'driver': 'bridge'})
+        filters = {
+            'label': original_project_label
+        }
+        original_nb_containers = self.container_runtime.client.containers.list(filters=filters)
+        self.nuvlabox_containers = self.container_runtime.client.containers.list(filters=filters, all=True)
+
+        filters.update({'driver': 'bridge'})
+        original_nb_internal_network = self.container_runtime.client.networks.list(filters=filters)
 
         if not original_nb_containers or not original_nb_internal_network:
             self.operational_status.append((utils.status_degraded, 'Original NuvlaBox network not found'))
@@ -695,7 +680,8 @@ class Supervise(Containers):
                 self.log.warning(f'Container {container.name} lost its network {original_nb_internal_network[0].name}.'
                                  f'Reconnecting...')
 
-                service_name = [container.labels['com.docker.compose.service']] if container.labels.get('com.docker.compose.service') else []
+                raw_service_name = container.labels.get('com.docker.compose.service')
+                service_name = [raw_service_name] if raw_service_name else []
                 try:
                     original_nb_internal_network[0].connect(container.name, aliases=service_name)
                 except docker.errors.APIError as e:
@@ -710,7 +696,7 @@ class Supervise(Containers):
                     self.operational_status.append((utils.status_degraded,
                                                     'NuvlaBox containers lost their network connection'))
 
-    def healer(self):
+    def docker_container_healer(self):
         """
         Loops through the NB containers and tries to fix the ones that are broken
 
@@ -728,7 +714,7 @@ class Supervise(Containers):
                 # .. just start the container
                 if status == 'created':
                     try:
-                        self.docker_client.api.start(container.id)
+                        self.container_runtime.client.api.start(container.id)
                         continue
                     except docker.errors.APIError as e:
                         self.log.error(f'Cannot resume container {container.name}. Reason: {str(e)}')
@@ -751,15 +737,16 @@ class Supervise(Containers):
                         # at this stage we simply need to try to restart it
                         try:
                             self.log.warning(f'Container {container.name} exited. Forcing restart')
-                            self.docker_client.api.restart(container.id)
+                            self.container_runtime.client.api.restart(container.id)
                         except docker.errors.APIError as e:
                             self.log.error(f'Failed to heal container {container.name}. Reason: {str(e)}')
-                            self.operational_status.append((utils.status_degraded, f'Container {container.name} is down'))
+                            self.operational_status.append((utils.status_degraded,
+                                                            f'Container {container.name} is down'))
                             if any(w in str(e) for w in ['NotFound', 'network', 'not found']):
                                 self.log.warning(f'Trying to reset network config for {container.name}')
                                 try:
-                                    self.docker_client.api.disconnect_container_from_network(container.id,
-                                                                                             utils.nuvlabox_shared_net)
+                                    self.container_runtime.client.api.disconnect_container_from_network(container.id,
+                                                                                                        utils.nuvlabox_shared_net)
                                 except docker.errors.APIError as e2:
                                     err_msg = f'Malfunctioning network for {container.name}: {str(e2)}'
                                     self.log.error(f'Cannot recover {container.name}. {err_msg}')

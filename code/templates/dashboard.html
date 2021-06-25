@@ -157,25 +157,25 @@
 
     <div class="card-deck text-info mt-2">
         <div class="card border-info bg-transparent mb-auto" style="max-width: 18rem;">
-            <div class="card-header border-info">Containers Running</div>
+            <div class="card-header border-info">Containers/Pods Running</div>
             <div class="card-body text-center">
                 <h4 class="card-title text-truncate">{{ containers_running }}</h4>
             </div>
         </div>
         <div class="card border-info bg-transparent mb-auto" style="max-width: 18rem;">
-            <div class="card-header border-info">Docker Images</div>
+            <div class="card-header border-info">Images</div>
             <div class="card-body text-info text-center">
                 <h4 class="card-title text-truncate">{{ docker_images }}</h4>
             </div>
         </div>
         <div class="card border-info bg-transparent mb-auto" style="max-width: 18rem;">
-            <div class="card-header border-info">Docker Version</div>
+            <div class="card-header border-info">{{ docker_or_kubelet }} Version</div>
             <div class="card-body text-info text-center">
                 <h4 class="card-title text-truncate">{{ docker_version }}</h4>
             </div>
         </div>
         <div class="card border-info bg-transparent mb-auto" style="max-width: 18rem;">
-            <div class="card-header border-info">Swarm Node ID</div>
+            <div class="card-header border-info">Node ID</div>
             <div class="card-body text-info text-center">
                 <h4 class="card-title text-truncate">{{ swarm_node_id }}</h4>
             </div>
@@ -193,7 +193,7 @@
 <footer class="card-footer font-small text-dark">
     <div class="container">
         <div class="text-center bg-light fixed-bottom">
-            <small>© 2020, SixSq Sàrl</small>
+            <small>© 2021, SixSq SA</small>
         </div>
     </div>
 </footer>
