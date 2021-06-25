@@ -47,7 +47,7 @@ class Supervise(Containers):
         self.on_stop_docker_image = self.container_runtime.infer_on_stop_docker_image()
         self.data_gateway_image = os.getenv('NUVLABOX_DATA_GATEWAY_IMAGE', 'eclipse-mosquitto:1.6.12')
         self.data_gateway_object = None
-        self.data_gateway_name = 'data-gateway'
+        self.data_gateway_name = os.getenv('NUVLABOX_DATA_GATEWAY_NAME', 'data-gateway')
         self.i_am_manager = self.is_cluster_enabled = self.node = None
         self.operational_status = []
         self.agent_dg_failed_connection = 0
