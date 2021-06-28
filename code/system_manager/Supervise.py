@@ -325,7 +325,7 @@ class Supervise(Containers):
         :return: agent container object or None
         """
 
-        container, err = self.container_runtime.find_nuvlabox_agent_component()
+        container, err = self.container_runtime.find_nuvlabox_agent_container()
 
         if err:
             self.operational_status.append((utils.status_degraded, err))
