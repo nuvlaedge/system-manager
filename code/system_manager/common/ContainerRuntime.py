@@ -304,7 +304,7 @@ class Kubernetes(ContainerRuntime):
                                                    label_selector=search_label).items
 
         if len(main_pod) == 0:
-            msg = f'Can not find main NuvlaBox Engine pod with label {search_label}'
+            msg = f'There are no pods running with the label {search_label}'
             self.logging.error(msg)
             return None, msg
         else:
@@ -313,6 +313,8 @@ class Kubernetes(ContainerRuntime):
         for container in this_pod.status.container_statuses:
             if container.name == 'agent':
                 return container, None
+
+        return None, f'Cannot find agent container within main NuvlaBox Engine pod with label {search_label}'
 
     def list_all_containers_in_this_node(self):
         pods_here = self.client.list_pod_for_all_namespaces(field_selector=f'spec.nodeName={self.host_node_name}').items
@@ -519,7 +521,7 @@ class Docker(ContainerRuntime):
 
         agent_container_id.raise_for_status()
 
-        return self.client.containers.get(agent_container_id.json())
+        return self.client.containers.get(agent_container_id.json()), None
 
     def list_all_containers_in_this_node(self):
         return self.client.containers.list(all=True)
