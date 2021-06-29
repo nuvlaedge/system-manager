@@ -8,7 +8,6 @@ checks requirements and supervises all internal components of the NuvlaBox
 Arguments:
 
 """
-import requests
 import sys
 import os
 import subprocess
@@ -34,7 +33,7 @@ class GracefulShutdown:
 
     def exit_gracefully(self, signum, frame):
         log.info(f'Starting on-stop graceful shutdown of the NuvlaBox...')
-        self_sup.launch_nuvlabox_on_stop()
+        self_sup.container_runtime.launch_nuvlabox_on_stop(self_sup.on_stop_docker_image)
         sys.exit(0)
 
 
@@ -48,11 +47,9 @@ def run_requirements_check():
         system_requirements = MinReq.SystemRequirements()
         software_requirements = MinReq.SoftwareRequirements()
 
-        if not software_requirements.check_docker_requirements() or not system_requirements.check_all_hw_requirements():
+        if not software_requirements.check_sw_requirements() or not system_requirements.check_all_hw_requirements():
             log.error("System does not meet the minimum requirements!")
             utils.set_operational_status(utils.status_degraded)
-            # utils.cleanup(utils.list_internal_containers(), utils.docker_id)
-            # sys.exit(1)
         else:
             utils.set_operational_status(utils.status_operational)
     else:
@@ -83,7 +80,7 @@ while True:
     if not api or not api.pid:
         api = subprocess.Popen(api_launch.split())
 
-    self_sup.write_docker_stats_table_html()
+    self_sup.write_container_stats_table_html()
 
     # refresh this node's status, to capture any changes in the COE/Cluster configuration
     self_sup.classify_this_node()
@@ -93,11 +90,15 @@ while True:
         log.info("Rotating NuvlaBox certificates...")
         self_sup.request_rotate_certificates()
 
-    self_sup.check_nuvlabox_connectivity()
+    if self_sup.container_runtime.orchestrator != 'kubernetes':
+        # in k8s there are no switched from uncluster - cluster, so there's no need for connectivity check
+        self_sup.check_nuvlabox_docker_connectivity()
 
-    self_sup.manage_data_gateway()
+        # the Data Gateway comes out of the box for k8s installations
+        self_sup.manage_docker_data_gateway()
 
-    self_sup.healer()
+        # in k8s everything runs as part of a Dep (restart policies are in place), so there's nothing to fix
+        self_sup.docker_container_healer()
 
     statuses = [s[0] for s in self_sup.operational_status]
     status_notes = [s[-1] for s in self_sup.operational_status]

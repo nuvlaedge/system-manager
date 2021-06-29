@@ -6,8 +6,8 @@
 import multiprocessing
 import logging
 import shutil
-import docker
 import os
+from system_manager.common.ContainerRuntime import Containers
 
 
 SKIP_MINIMUM_REQUIREMENTS = False
@@ -16,7 +16,7 @@ if 'SKIP_MINIMUM_REQUIREMENTS' in os.environ and \
     SKIP_MINIMUM_REQUIREMENTS = True
 
 
-class SystemRequirements(object):
+class SystemRequirements(Containers):
     """ The SystemRequirements contains all the methods and
     definitions for checking whether a device is physically capable of
     hosting the NuvlaBox Engine
@@ -29,12 +29,13 @@ class SystemRequirements(object):
         """ Constructs an SystemRequirements object """
 
         self.log = logging.getLogger(__name__)
+        super().__init__(self.log)
+
         self.minimum_requirements = {
             "cpu": 1,
             "ram": 512,
             "disk": 2
         }
-        self.docker_client = docker.from_env()
 
     def check_cpu_requirements(self):
         """ Check the device for the CPU requirements according to the
@@ -53,7 +54,7 @@ class SystemRequirements(object):
         """ Check the device for the RAM requirements according to the
          recommended ones """
 
-        total_ram = round((self.docker_client.info()['MemTotal']/1024/1024), 2)
+        total_ram = round(self.container_runtime.get_ram_capacity(), 2)
 
         if total_ram < self.minimum_requirements["ram"]:
             self.log.error("Your device only provides {} MBs of memory. MIN REQUIREMENTS: {} MBs"
@@ -81,7 +82,7 @@ class SystemRequirements(object):
         return self.check_cpu_requirements() and self.check_disk_requirements() and self.check_ram_requirements()
 
 
-class SoftwareRequirements(object):
+class SoftwareRequirements(Containers):
     """ The SoftwareRequirements contains all the methods and
     definitions for checking whether a device has all the Software
     dependencies and configurations required by the NuvlaBox Engine
@@ -94,32 +95,11 @@ class SoftwareRequirements(object):
         """ Constructs the class """
 
         self.log = logging.getLogger(__name__)
+        super().__init__(self.log)
 
-        self.minimum_requirements = {
-            "docker_version": 18
-        }
-        self.docker_client = docker.from_env()
-
-    def check_docker_requirements(self):
-        """ Checks if Docker version is high enough """
-
-        docker_major_version = int(self.docker_client.version()["Components"][0]["Version"].split(".")[0])
-
-        if docker_major_version < self.minimum_requirements["docker_version"]:
-            self.log.error("Your Docker version is too old: {}. MIN REQUIREMENTS: Docker {} or newer"
-                           .format(docker_major_version, self.minimum_requirements["docker_version"]))
-            return False
-        else:
-            if self.check_active_swarm():
-                self.log.info("Running in Swarm mode")
+    def check_sw_requirements(self):
+        """ Checks all the SW requirements """
+        if self.container_runtime.is_version_compatible() and self.container_runtime.is_coe_enabled():
             return True
 
-    def check_active_swarm(self):
-        """ Checks that the device is running on Swarm mode """
-
-        try:
-            swarm_attrs = self.docker_client.swarm.attrs
-        except docker.errors.APIError:
-            return False
-
-        return False if not swarm_attrs else True
+        return False
