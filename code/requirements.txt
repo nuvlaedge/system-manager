@@ -1,3 +1,4 @@
 docker
 Flask==1.0.0
 gunicorn
+kubernetes
