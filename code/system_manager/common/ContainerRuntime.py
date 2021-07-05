@@ -226,7 +226,7 @@ class Kubernetes(ContainerRuntime):
         if self.host_node_name:
             this_node = self.client.read_node(self.host_node_name)
             try:
-                return this_node.status.node_info
+                return this_node
             except AttributeError:
                 self.logging.warning(f'Cannot infer node information for node "{self.host_node_name}"')
 
@@ -236,7 +236,7 @@ class Kubernetes(ContainerRuntime):
         return int(self.get_node_info().status.capacity.get('memory', '0').rstrip('Ki'))/1024
 
     def is_version_compatible(self):
-        kubelet_version = self.get_node_info().kubelet_version
+        kubelet_version = self.get_node_info().status.node_info.kubelet_version
 
         kubelet_simplified_version = int(''.join(kubelet_version.lstrip('v').split('.')[0:2]))
         kubelet_minimum_version = int(self.minimum_major_version + self.minimum_minor_version)
