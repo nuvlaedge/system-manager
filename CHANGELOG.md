@@ -1,4 +1,9 @@
 # Changelog
+## [2.1.0] - 2021-07-09
+### Added 
+ - support for execution in Kubernetes 
+ - make Swarm mode a soft requirement
+### Changed
 ## [2.0.1] - 2021-06-11
 ### Added
 ### Changed
