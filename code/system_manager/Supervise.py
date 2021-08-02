@@ -9,12 +9,12 @@ import time
 import os
 import glob
 import OpenSSL
-import requests
 import socket
 from datetime import datetime
 from system_manager.common.logging import logging
 from system_manager.common import utils
 from system_manager.common.ContainerRuntime import Containers
+from threading import Timer
 
 
 class ClusterNodeCannotManageDG(Exception):
@@ -53,6 +53,7 @@ class Supervise(Containers):
         self.agent_dg_failed_connection = 0
         self.lost_quorum_hint = 'possible that too few managers are online'
         self.nuvlabox_containers = []
+        self.nuvlabox_containers_restarting = {}
 
     @staticmethod
     def printer(content, file):
@@ -706,6 +707,13 @@ class Supervise(Containers):
         if not self.nuvlabox_containers:
             return
 
+        obsolete_containers = set(self.nuvlabox_containers_restarting) - set([c.name for c in self.nuvlabox_containers])
+        if obsolete_containers:
+            # this means we had old restarts for old containers, so let's just clean them up to avoid
+            # unnecessary memory pile up
+            for cname in obsolete_containers:
+                self.nuvlabox_containers_restarting.pop(cname)
+
         for container in self.nuvlabox_containers:
             status = container.status.lower()
             if status not in ["paused", "running", "restarting"]:
@@ -735,20 +743,35 @@ class Supervise(Containers):
                             continue
 
                         # at this stage we simply need to try to restart it
-                        try:
-                            self.log.warning(f'Container {container.name} exited. Forcing restart')
-                            self.container_runtime.client.api.restart(container.id)
-                        except docker.errors.APIError as e:
-                            self.log.error(f'Failed to heal container {container.name}. Reason: {str(e)}')
-                            self.operational_status.append((utils.status_degraded,
-                                                            f'Container {container.name} is down'))
-                            if any(w in str(e) for w in ['NotFound', 'network', 'not found']):
-                                self.log.warning(f'Trying to reset network config for {container.name}')
-                                try:
-                                    self.container_runtime.client.api.disconnect_container_from_network(container.id,
-                                                                                                        utils.nuvlabox_shared_net)
-                                except docker.errors.APIError as e2:
-                                    err_msg = f'Malfunctioning network for {container.name}: {str(e2)}'
-                                    self.log.error(f'Cannot recover {container.name}. {err_msg}')
-                                    self.operational_status.append((utils.status_degraded, err_msg))
+                        if (container.name in self.nuvlabox_containers_restarting and
+                                not self.nuvlabox_containers_restarting[container.name].is_alive()) or \
+                                container.name not in self.nuvlabox_containers_restarting:
+                            self.log.warning(f'Container {container.name} down (code {exit_code}). Scheduling restart')
+                            self.nuvlabox_containers_restarting[container.name] = Timer(30,
+                                                                                        self.restart_container,
+                                                                                        (container.name, container.id))
+                            self.nuvlabox_containers_restarting[container.name].start()
+
+    def restart_container(self, name, container_id):
+        """
+        Restar a container
+        :return:
+        """
+
+        try:
+            self.container_runtime.client.api.restart(container_id)
+            self.log.info(f'Successfully restarted container {name}')
+        except docker.errors.APIError as e:
+            self.log.error(f'Failed to heal container {name}. Reason: {str(e)}')
+            self.operational_status.append((utils.status_degraded, f'Container {name} is down'))
+
+            if any(w in str(e) for w in ['NotFound', 'network', 'not found']):
+                self.log.warning(f'Trying to reset network config for {name}')
+                try:
+                    self.container_runtime.client.api.disconnect_container_from_network(container_id,
+                                                                                        utils.nuvlabox_shared_net)
+                except docker.errors.APIError as e2:
+                    err_msg = f'Malfunctioning network for {name}: {str(e2)}'
+                    self.log.error(f'Cannot recover {name}. {err_msg}')
+                    self.operational_status.append((utils.status_degraded, err_msg))
 
