@@ -1,4 +1,9 @@
 # Changelog
+## [2.1.1] - 2021-08-02
+### Added
+### Changed
+ - refactored internal container healer
+ - schedule container restarts for the near future to cope with NBE uninstall
 ## [2.1.0] - 2021-07-09
 ### Added 
  - support for execution in Kubernetes 
