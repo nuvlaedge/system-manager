@@ -6,7 +6,7 @@ cat>get-deps.sh <<EOF
 #!/bin/sh
 
 pip install pipdeptree pip-licenses graphviz
-apk update && apk add graphviz
+apk update && apk add graphviz ttf-freefont
 
 pipdeptree --graph-output png -e $ignore_pkgs > dependencies-tree.png
 
