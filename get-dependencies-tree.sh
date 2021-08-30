@@ -1,12 +1,12 @@
 #!/bin/sh
 
+ignore_pkgs="pipdeptree,pip-licenses,graphviz,pip,wheel,setuptools"
+
 cat>get-deps.sh <<EOF
 #!/bin/sh
 
 pip install pipdeptree pip-licenses graphviz
 apk update && apk add graphviz
-
-ignore_pkgs="pipdeptree,pip-licenses,graphviz,pip,wheel,setuptools"
 
 pipdeptree --graph-output png -e $ignore_pkgs > dependencies-tree.png
 
