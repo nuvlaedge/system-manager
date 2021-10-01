@@ -370,8 +370,8 @@ class Supervise(Containers):
         """
 
         # ## 1: if the DG network already exists, then chances are that the DG has already been deployed
-        dg_network = self.find_docker_network(utils.nuvlabox_shared_net)
-        if not dg_network:
+        dg_networks = self.find_docker_network([utils.nuvlabox_shared_net])
+        if not dg_networks:
             # network doesn't exist, so let's create it as well
             try:
                 self.setup_docker_network(utils.nuvlabox_shared_net)
@@ -384,21 +384,25 @@ class Supervise(Containers):
                 return
         else:
             # make sure the network driver makes sense, to avoid having a bridge network on a Swarm node
-            dg_net_driver = dg_network.attrs.get('Driver')
-            if dg_net_driver.lower() == 'bridge' and self.is_cluster_enabled:
-                self.destroy_docker_network(dg_network)
+            if self.is_cluster_enabled:
                 # if swarm is enabled, a container-based data-gateway doesn't make sense
-                try:
-                    self.container_runtime.client.get(self.data_gateway_name)
-                except docker.errors.NotFound:
-                    pass
-                else:
+                bridge_nets = list(filter(lambda o: o.attrs.get('Driver', '') == 'bridge', dg_networks))
+                for leftover_bridge_net in bridge_nets:
+                    self.destroy_docker_network(leftover_bridge_net)
+                    # if swarm is enabled, a container-based data-gateway doesn't make sense
                     try:
-                        self.container_runtime.client.api.remove_container(self.data_gateway_name, force=True)
-                    except Exception as e:
-                        self.log.error(f'Could not remove old {self.data_gateway_name} container: {str(e)}')
-                # reset cycle cause network needs to be recreated
-                return
+                        self.container_runtime.client.containers.get(self.data_gateway_name)
+                    except docker.errors.NotFound:
+                        pass
+                    else:
+                        try:
+                            self.container_runtime.client.api.remove_container(self.data_gateway_name, force=True)
+                        except Exception as e:
+                            self.log.error(f'Could not remove old {self.data_gateway_name} container: {str(e)}')
+
+                # is there an overlay network as well? if not, reset cycle cause network needs to be recreated
+                if list(filter(lambda o: o.attrs.get('Driver', '') == 'overlay', dg_networks)):
+                    return
 
         # ## 2: DG network exists, but does the DG?
         # check the existence of the DG
@@ -500,19 +504,15 @@ class Supervise(Containers):
             self.data_gateway_object = None
             return False
 
-    def find_docker_network(self, network_name: str) -> object or None:
+    def find_docker_network(self, network_names: list) -> object or None:
         """
-        Finds a network by name
+        Finds networks by name
 
-        :param network_name: name of the network
+        :param network_name: names of the networks to list
         :return: Docker network object or None
         """
-        try:
-            return self.container_runtime.client.networks.get(network_name)
-        except docker.errors.NotFound:
-            self.log.info(f'Shared network {network_name} not found')
 
-            return None
+        return self.container_runtime.client.networks.list(names=network_names)
 
     def destroy_docker_network(self, network: docker.DockerClient.networks):
         """
