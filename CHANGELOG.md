@@ -1,4 +1,8 @@
 # Changelog
+## [2.1.2] - 2021-10-01
+### Added
+### Changed
+ - cope with faulty multiple Docker networks with the same name
 ## [2.1.1] - 2021-08-02
 ### Added
 ### Changed
