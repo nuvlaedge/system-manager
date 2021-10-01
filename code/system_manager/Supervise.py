@@ -388,6 +388,7 @@ class Supervise(Containers):
                 # if swarm is enabled, a container-based data-gateway doesn't make sense
                 bridge_nets = list(filter(lambda o: o.attrs.get('Driver', '') == 'bridge', dg_networks))
                 for leftover_bridge_net in bridge_nets:
+                    leftover_bridge_net.reload()
                     self.destroy_docker_network(leftover_bridge_net)
                     # if swarm is enabled, a container-based data-gateway doesn't make sense
                     try:
@@ -521,11 +522,13 @@ class Supervise(Containers):
         :param network: Docker network object
         :return:
         """
-        self.log.warning(f'About to destroy Docker network {network.name}')
+        self.log.warning(f'About to destroy Docker network {network.name} with ID {network.id}')
 
         containers_attached = network.attrs.get('Containers')
 
         if containers_attached:
+            self.log.warning('The following containers need to be detached from the network first: ' \
+                            f'{",".join(list(containers_attached.keys()))}')
             for container_id in containers_attached.keys():
                 try:
                     network.disconnect(container_id)
