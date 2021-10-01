@@ -322,7 +322,7 @@ class Kubernetes(ContainerRuntime):
         containers = []
         for pod in pods_here:
             containers += pod.status.container_statuses
-            
+
         return containers
 
     def count_images_in_this_host(self):
@@ -377,15 +377,13 @@ class Docker(ContainerRuntime):
         return True
 
     def is_coe_enabled(self, check_local_node_state=False):
-        try:
-            swarm_attrs = self.client.swarm.attrs
-        except docker.errors.APIError:
+        if not self.client.info()['Swarm'].get('NodeID'):
             return False
 
         if self.get_node_info().get('Swarm', {}).get('LocalNodeState', 'inactive').lower() == "inactive":
             return False
 
-        return False if not swarm_attrs else True
+        return True
 
     def infer_on_stop_docker_image(self):
         on_stop_container_name = "nuvlabox-on-stop"

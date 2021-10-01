@@ -45,7 +45,7 @@ class SystemRequirements(Containers):
 
         if cpu_count < self.minimum_requirements["cpu"]:
             logging.error("Your device only provides {} CPUs. MIN REQUIREMENTS: {}"
-                                .format(cpu_count, self.minimum_requirements["cpu"]))
+                          .format(cpu_count, self.minimum_requirements["cpu"]))
             return False
         else:
             return True
