@@ -384,6 +384,7 @@ class Supervise(Containers):
                 return
         else:
             # make sure the network driver makes sense, to avoid having a bridge network on a Swarm node
+            dg_network = dg_networks[0]
             if self.is_cluster_enabled:
                 # if swarm is enabled, a container-based data-gateway doesn't make sense
                 bridge_nets = list(filter(lambda o: o.attrs.get('Driver', '') == 'bridge', dg_networks))
@@ -401,9 +402,12 @@ class Supervise(Containers):
                         except Exception as e:
                             self.log.error(f'Could not remove old {self.data_gateway_name} container: {str(e)}')
 
+                running_nets = list(set(dg_networks) - set(bridge_nets))
                 # is there an overlay network as well? if not, reset cycle cause network needs to be recreated
-                if list(filter(lambda o: o.attrs.get('Driver', '') == 'overlay', dg_networks)):
+                if not running_nets:
                     return
+
+                dg_network = running_nets[0]
 
         # ## 2: DG network exists, but does the DG?
         # check the existence of the DG
