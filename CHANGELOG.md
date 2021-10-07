@@ -1,4 +1,8 @@
 # Changelog
+## [2.1.4] - 2021-10-07
+### Added
+### Changed
+ - fix discovery of Docker server version, when Docker is installed from source
 ## [2.1.3] - 2021-10-04
 ### Added
 ### Changed
