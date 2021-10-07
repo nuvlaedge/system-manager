@@ -367,7 +367,7 @@ class Docker(ContainerRuntime):
         return self.get_node_info()['MemTotal']/1024/1024
 
     def is_version_compatible(self):
-        docker_major_version = int(self.client.version()["Components"][0]["Version"].split(".")[0])
+        docker_major_version = int(self.client.version()["Components"][0]["Version"].split(".")[0].replace('v', ''))
 
         if docker_major_version < self.minimum_version:
             self.logging.error("Your Docker version is too old: {}. MIN REQUIREMENTS: Docker {} or newer"
