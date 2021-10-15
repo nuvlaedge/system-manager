@@ -48,13 +48,16 @@ def run_requirements_check():
     software_requirements = MinReq.SoftwareRequirements()
 
     if not software_requirements.check_sw_requirements() or not system_requirements.check_all_hw_requirements():
-        log.error("System does not meet the minimum requirements!")
+        err_msg = "System does not meet the minimum software requirements!"
+        log.error(err_msg)
         if not MinReq.SKIP_MINIMUM_REQUIREMENTS:
-            utils.set_operational_status(utils.status_degraded)
+            utils.set_operational_status(utils.status_degraded, notes=[err_msg])
+            # sleep to make sure we don't fall into Docker's exponential restart time
+            time.sleep(10)
             sys.exit(1)
         else:
             log.warning("You've decided to skip the system requirements verification. "
-                    "It is not guaranteed that the NuvlaBox will perform as it should. Continuing anyway...")
+                        "It is not guaranteed that the NuvlaBox will perform as it should. Continuing anyway...")
 
     utils.set_operational_status(utils.status_operational)
     log.info("Successfully created status file")
