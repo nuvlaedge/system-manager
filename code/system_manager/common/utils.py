@@ -4,6 +4,7 @@
 """ Common set of managament methods to be used by
  the different system manager classes """
 
+import os
 from system_manager.common.logging import logging
 
 data_volume = "/srv/nuvlabox/shared"
@@ -44,3 +45,10 @@ def set_operational_status(status: str, notes: list = []):
     except Exception as e:
         log.warning(f'Failed to write status notes {notes} in {operational_status_notes_file}: {str(e)}')
         pass
+
+
+def status_file_exists() -> bool:
+    if os.path.exists(operational_status_file):
+        return True
+
+    return False
