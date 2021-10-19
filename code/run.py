@@ -18,7 +18,7 @@ from system_manager.common import utils
 from system_manager.common.logging import logging
 from system_manager.Supervise import Supervise
 
-__copyright__ = "Copyright (C) 2020 SixSq"
+__copyright__ = "Copyright (C) 2021 SixSq"
 __email__ = "support@sixsq.com"
 
 log = logging.getLogger(__name__)
@@ -40,43 +40,57 @@ class GracefulShutdown:
 on_stop = GracefulShutdown()
 
 
-def run_requirements_check():
-    utils.set_operational_status(utils.status_unknown)
+def requirements_check(sw_rq: MinReq.SoftwareRequirements,
+                       system_rq: MinReq.SystemRequirements,
+                       operational_status: list):
+    """
+    Checks if the NuvlaBox requirements are met
 
-    # Check if the system complies with the minimum hw and sw requirements for the NuvlaBox
-    system_requirements = MinReq.SystemRequirements()
-    software_requirements = MinReq.SoftwareRequirements()
+    :param sw_rq: instance of MinReq.SoftwareRequirements
+    :param system_rq: instance of MinReq.SystemRequirements
+    :param operational_status: list of tuples (status, status_notes)
 
-    if not software_requirements.check_sw_requirements() or not system_requirements.check_all_hw_requirements():
-        log.error("System does not meet the minimum requirements!")
+    :return:
+    """
+
+    if not sw_rq.check_sw_requirements() or not system_rq.check_all_hw_requirements():
+        err_msg = "System does not meet the minimum requirements!"
+
         if not MinReq.SKIP_MINIMUM_REQUIREMENTS:
-            utils.set_operational_status(utils.status_degraded)
-            sys.exit(1)
+            if not utils.status_file_exists():
+                log.error(err_msg + "\nCannot continue...")
+                # sleep to make sure we don't fall into Docker's exponential restart time
+                time.sleep(10)
+                sys.exit(1)
+
+            operational_status.append((utils.status_degraded, err_msg))
         else:
+            operational_status.append((utils.status_unknown,
+                                       'Minimum requirements not met, but SKIP_MINIMUM_REQUIREMENTS is enabled'))
             log.warning("You've decided to skip the system requirements verification. "
-                    "It is not guaranteed that the NuvlaBox will perform as it should. Continuing anyway...")
+                        "It is not guaranteed that the NuvlaBox will perform as it should. Continuing anyway...")
 
-    utils.set_operational_status(utils.status_operational)
-    log.info("Successfully created status file")
+    if not utils.status_file_exists():
+        utils.set_operational_status(utils.status_operational)
 
-    peripherals = '{}/.peripherals'.format(utils.data_volume)
+        peripherals = '{}/.peripherals'.format(utils.data_volume)
 
-    try:
-        # Create Directory
-        os.mkdir(peripherals)
-        log.info("Successfully created peripherals directory")
-    except FileExistsError:
-        log.info("Directory " + peripherals + " already exists")
+        try:
+            # Dynamically create directory for peripheral managers
+            os.mkdir(peripherals)
+            log.info("Successfully created peripherals directory")
+        except FileExistsError:
+            log.info("Directory " + peripherals + " already exists")
 
 
-run_requirements_check()
+system_requirements = MinReq.SystemRequirements()
+software_requirements = MinReq.SoftwareRequirements()
 
 api_launch = 'gunicorn --bind=0.0.0.0:3636 --threads=2 --worker-class=gthread --workers=1 --reload wsgi:app --daemon'
 api = None
-
-
 while True:
     self_sup.operational_status = []
+    requirements_check(software_requirements, system_requirements, self_sup.operational_status)
     if not api or not api.pid:
         api = subprocess.Popen(api_launch.split())
 
