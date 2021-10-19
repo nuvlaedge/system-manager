@@ -1,4 +1,8 @@
 # Changelog
+## [2.1.5] - 2021-10-19
+### Added 
+ - report status notes when minimum requirements are not met
+### Changed
 ## [2.1.4] - 2021-10-07
 ### Added
 ### Changed
