@@ -52,13 +52,19 @@ def requirements_check(sw_rq: MinReq.SoftwareRequirements,
 
     :return:
     """
+    sw_rq.not_met = []
+    system_rq.not_met = []
+    meet_sw_rq = sw_rq.check_sw_requirements()
+    meet_hw_rq = system_rq.check_all_hw_requirements()
+    if not meet_sw_rq or not meet_hw_rq:
+        not_met = sw_rq.not_met + system_rq.not_met
+        not_met_msg = "\n\t* " + "\n\t* ".join(not_met) if not_met else ''
+        err_msg = f"System does not meet the minimum requirements! {not_met_msg} \n"
 
-    if not sw_rq.check_sw_requirements() or not system_rq.check_all_hw_requirements():
-        err_msg = "System does not meet the minimum requirements!"
-
+        log.warning(err_msg)
         if not MinReq.SKIP_MINIMUM_REQUIREMENTS:
             if not utils.status_file_exists():
-                log.error(err_msg + "\nCannot continue...")
+                log.error("Cannot continue...")
                 # sleep to make sure we don't fall into Docker's exponential restart time
                 time.sleep(10)
                 sys.exit(1)

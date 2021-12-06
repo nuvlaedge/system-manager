@@ -25,13 +25,15 @@ LABEL git.run.id=${TRAVIS_BUILD_WEB_URL}
 
 COPY --from=pyopenssl-builder /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
 
-COPY code/ LICENSE /opt/nuvlabox/
+RUN apk add --no-cache curl
+
+COPY code/requirements.txt /opt/nuvlabox/
 
 WORKDIR /opt/nuvlabox/
 
-RUN apk add --no-cache curl
-
 RUN pip install -r requirements.txt
+
+COPY code/ LICENSE /opt/nuvlabox/
 
 VOLUME /srv/nuvlabox/shared
 
