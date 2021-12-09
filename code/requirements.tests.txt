@@ -1,2 +1,5 @@
 mock
 pytest
+docker
+requests
+kubernetes
