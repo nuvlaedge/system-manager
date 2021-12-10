@@ -38,7 +38,8 @@ def base_pod(name: str=None, phase: str='running'):
         'metadata': {
             'namespace': 'namespace',
             'selfLink': random.randint(100, 999),
-            'name': name if name else random.randint(100, 999)
+            'name': name if name else random.randint(100, 999),
+            'uid': name if name else random.randint(100, 999)
         },
         'status': {
             'container_statuses': [
@@ -56,6 +57,13 @@ def base_pod(name: str=None, phase: str='running'):
                 }
             ],
             'phase': phase
+        },
+        'spec': {
+            'containers': [
+                {
+                    'name': name if name else random.randint(100, 999)
+                }
+            ]
         }
     }
     return pod
