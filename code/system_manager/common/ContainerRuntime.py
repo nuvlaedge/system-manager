@@ -171,6 +171,12 @@ class ContainerRuntime(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_version(self):
+        """ Gets the version of the underlying COE
+        """
+        pass
+
 
 class Kubernetes(ContainerRuntime):
     """
@@ -187,6 +193,7 @@ class Kubernetes(ContainerRuntime):
         self.host_node_name = os.getenv('MY_HOST_NODE_NAME')
         self.minimum_major_version = '1'
         self.minimum_minor_version = '20'
+        self.minimum_version = f'{self.minimum_major_version}.{self.minimum_minor_version}'
         self.credentials_manager_component = 'kubernetes-credentials-manager'
         self.orchestrator = 'kubernetes'
         self.agent_dns = f'agent.{self.namespace}'
@@ -236,7 +243,7 @@ class Kubernetes(ContainerRuntime):
         return int(self.get_node_info().status.capacity.get('memory', '0').rstrip('Ki'))/1024
 
     def is_version_compatible(self):
-        kubelet_version = self.get_node_info().status.node_info.kubelet_version
+        kubelet_version = self.get_version()
 
         kubelet_simplified_version = int(''.join(kubelet_version.lstrip('v').split('.')[0:2]))
         kubelet_minimum_version = int(self.minimum_major_version + self.minimum_minor_version)
@@ -328,6 +335,9 @@ class Kubernetes(ContainerRuntime):
     def count_images_in_this_host(self):
         return len(self.get_node_info().status.images)
 
+    def get_version(self):
+        return self.get_node_info().status.node_info.kubelet_version
+
 
 class Docker(ContainerRuntime):
     """
@@ -367,7 +377,7 @@ class Docker(ContainerRuntime):
         return self.get_node_info()['MemTotal']/1024/1024
 
     def is_version_compatible(self):
-        docker_major_version = int(self.client.version()["Components"][0]["Version"].split(".")[0].replace('v', ''))
+        docker_major_version = int(self.get_version())
 
         if docker_major_version < self.minimum_version:
             self.logging.error("Your Docker version is too old: {}. MIN REQUIREMENTS: Docker {} or newer"
@@ -526,6 +536,9 @@ class Docker(ContainerRuntime):
 
     def count_images_in_this_host(self):
         return self.get_node_info().get("Images")
+
+    def get_version(self):
+        return self.client.version()["Components"][0]["Version"].split(".")[0].replace('v', '')
 
 
 # --------------------

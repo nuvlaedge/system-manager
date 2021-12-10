@@ -1,4 +1,8 @@
 # Changelog
+## [2.2.0] - 2021-12-06
+### Added 
+ - explicit reporting of missing minimum requirements
+### Changed
 ## [2.1.5] - 2021-10-19
 ### Added 
  - report status notes when minimum requirements are not met
