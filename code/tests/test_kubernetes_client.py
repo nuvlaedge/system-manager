@@ -108,245 +108,130 @@ class KubernetesTestCase(unittest.TestCase):
         self.assertTrue(self.obj.is_version_compatible(),
                         'Failed to check if Kubernetes version is compatible')
 
-    # def test_is_coe_enabled(self):
-    #     self.obj.client.info.return_value = {'Swarm': {}}
-    #     # if not Swarm node ID, get False
-    #     self.assertFalse(self.obj.is_coe_enabled(),
-    #                      'Falsely claiming Swarm is enabled, even though node does not have an ID')
-    #
-    #     # if it has an ID, but is inactive, also False
-    #     self.obj.client.info.return_value = {'Swarm': {'NodeID': 'id'}}
-    #     self.assertFalse(self.obj.is_coe_enabled(),
-    #                      'Falsely claiming Swarm is enabled, even though node is missing Inactive field')
-    #     self.obj.client.info.return_value = {'Swarm': {'NodeID': 'id', 'LocalNodeState': 'inactive'}}
-    #     self.assertFalse(self.obj.is_coe_enabled(),
-    #                      'Falsely claiming Swarm is enabled, even though node is inactive')
-    #
-    #     # otherwise, True
-    #     self.obj.client.info.return_value = {'Swarm': {'NodeID': 'id', 'LocalNodeState': 'active'}}
-    #     self.assertTrue(self.obj.is_coe_enabled(),
-    #                     'Failed to check that COE is enabled')
-    #
-    # def test_infer_on_stop_docker_image(self):
-    #     # if container does not exist, take the latest dev image
-    #     self.obj.client.containers.get.side_effect = docker.errors.NotFound('', requests.Response())
-    #     self.assertEqual(self.obj.infer_on_stop_docker_image(), 'nuvladev/on-stop:main',
-    #                      'Failed to provide fallback on-stop image when container does not exist in the system')
-    #
-    #     # if any other error, get None
-    #     self.obj.client.containers.get.side_effect = Exception
-    #     self.assertIsNone(self.obj.infer_on_stop_docker_image(),
-    #                       'Returned something when on-stop image cannot be inferred')
-    #
-    #     # otherwise
-    #     self.obj.client.containers.get.reset_mock(side_effect=True)
-    #     container = mock.MagicMock()
-    #     # if on-stop exists and is not pause, get None
-    #     container.status = 'running'
-    #     self.obj.client.containers.get.return_value = container
-    #     self.assertIsNone(self.obj.infer_on_stop_docker_image(),
-    #                       'Got on-stop image even though there is a running on-stop container')
-    #
-    #     # if paused, but missing attrs, get None
-    #     container.status = 'paused'
-    #     container.attrs = {}
-    #     self.obj.client.containers.get.return_value = container
-    #     self.assertIsNone(self.obj.infer_on_stop_docker_image(),
-    #                       'Got on-stop image even though we could no assess the existing on-stop container attributes')
-    #
-    #     # otherwise, get image name
-    #     container.attrs = {'Config': {'Image': 'foo'}}
-    #     self.obj.client.containers.get.return_value = container
-    #     self.assertEqual(self.obj.infer_on_stop_docker_image(), 'foo',
-    #                      'Unable to infer on-stop image')
-    #
-    # @mock.patch('socket.gethostname')
-    # @mock.patch.object(ContainerRuntime.Docker, 'infer_on_stop_docker_image')
-    # def test_launch_nuvlabox_on_stop(self, mock_infer_on_stop_docker_image, mock_gethostname):
-    #     # if on-stop image is not given, need to infer, and returns None if cannot be inferred
-    #     mock_infer_on_stop_docker_image.return_value = None
-    #     self.assertIsNone(self.obj.launch_nuvlabox_on_stop(None),
-    #                       'Tried to launch on-stop container even though its image is not known')
-    #     mock_infer_on_stop_docker_image.assert_called_once()
-    #     mock_gethostname.assert_not_called()
-    #
-    #     # otherwise, use the given image name and try to launch the container
-    #     mock_gethostname.return_value = 'localhost'
-    #     self.obj.client.containers.get.side_effect = docker.errors.NotFound('', requests.Response())
-    #     self.obj.client.containers.run.return_value = None
-    #     self.assertIsNone(self.obj.launch_nuvlabox_on_stop('image'),
-    #                       'Failed to launch on-stop without project name')
-    #     self.assertEqual(mock_gethostname.call_count, 2,
-    #                      'Failed to catch container NotFound exception')
-    #     self.obj.client.containers.run.assert_called_once()
-    #
-    #     self.obj.client.containers.get.reset_mock(side_effect=True)
-    #     self.assertIsNone(self.obj.launch_nuvlabox_on_stop('image'),
-    #                       'Failed to launch on-stop container')
-    #     self.assertEqual(mock_gethostname.call_count, 3,
-    #                      'Failed to find "self" container')
-    #
-    # @mock.patch.object(ContainerRuntime.Docker, 'get_node_info')
-    # def test_get_node_id(self, mock_get_node_info):
-    #     mock_get_node_info.return_value = {'Swarm': {'NodeID': 'id'}}
-    #     # lookup
-    #     self.assertEqual(self.obj.get_node_id(), 'id',
-    #                      'Failed to get Node ID')
-    #
-    # def test_list_nodes(self):
-    #     self.obj.client.nodes.list.return_value = ['node']
-    #     self.assertEqual(self.obj.list_nodes(optional_filter={'filter': 'foo'}), ['node'],
-    #                      'Failed to list nodes')
-    #     self.obj.client.nodes.list.assert_called_once_with(filters={'filter': 'foo'})
-    #
-    # @mock.patch.object(ContainerRuntime.Docker, 'get_node_info')
-    # def test_get_cluster_managers(self, mock_get_node_info):
-    #     # if RemoteManagers is invalid, get []
-    #     mock_get_node_info.return_value = {}
-    #     self.assertEqual(self.obj.get_cluster_managers(), [],
-    #                      'Got cluster manager even though RemoteManagers is not set')
-    #
-    #     mock_get_node_info.return_value = {'Swarm': {'RemoteManagers': {}}}
-    #     self.assertEqual(self.obj.get_cluster_managers(), [],
-    #                      'Got cluster manager even though RemoteManagers has the wrong type (is not a list)')
-    #
-    #     # otherwise get list of IDs
-    #     mock_get_node_info.return_value = {'Swarm': {'RemoteManagers': [{'NodeID': 'id1'}, {'NodeID': 'id2'}]}}
-    #     self.assertEqual(self.obj.get_cluster_managers(), ['id1', 'id2'],
-    #                      'Failed to get cluster managers')
-    #
-    # def test_read_system_issues(self):
-    #     # simply lookup errors and warning from the provided node info
-    #     node_info = {
-    #         'Swarm': {}
-    #     }
-    #     self.assertEqual(self.obj.read_system_issues(node_info), ([], []),
-    #                      'Got system issues when there are none')
-    #
-    #     node_info = {
-    #         'Swarm': {'Error': 'error'}
-    #     }
-    #     self.assertEqual(self.obj.read_system_issues(node_info), (['error'], []),
-    #                      'Failed to read system error')
-    #
-    #     node_info['Warnings'] = ['warn1', 'warn2']
-    #     self.assertEqual(self.obj.read_system_issues(node_info), (['error'], ['warn1', 'warn2']),
-    #                      'Failed to read system errors and warnings')
-    #
-    # @mock.patch.object(ContainerRuntime.Docker, 'read_system_issues')
-    # @mock.patch.object(ContainerRuntime.Docker, 'get_node_info')
-    # @mock.patch.object(ContainerRuntime.Docker, 'get_node_id')
-    # def test_set_nuvlabox_node_label(self, mock_get_node_id, mock_get_node_info, mock_read_system_issues):
-    #     # handle Docker errors
-    #     self.obj.client.nodes.get.side_effect = docker.errors.APIError('', requests.Response())
-    #     out = self.obj.set_nuvlabox_node_label('id')
-    #     self.assertFalse(out[0],
-    #                      'Set node label even though Docker ended up in an error')
-    #     self.assertTrue(out[1].startswith('Unable to set NuvlaBox node label'),
-    #                     'Got the wrong error message while failing to set node label')
-    #
-    #     self.obj.client.nodes.get.side_effect = docker.errors.APIError(self.obj.lost_quorum_hint, requests.Response())
-    #     mock_get_node_info.return_value = None
-    #     mock_read_system_issues.return_value = ([], [])
-    #     out = self.obj.set_nuvlabox_node_label('id')
-    #     self.assertFalse(out[0],
-    #                      'Set node label even though Swarm quorum was lost')
-    #     self.assertTrue(out[1].startswith('Quorum is lost'),
-    #                     'Got the wrong error message when quorum is lost')
-    #     mock_read_system_issues.assert_called_once_with(None)
-    #
-    #     # also fail if Node is missing Spec
-    #     self.obj.client.nodes.get.reset_mock(side_effect=True)
-    #     node = mock.MagicMock()
-    #     node.attrs = {}
-    #     self.obj.client.nodes.get.return_value = node
-    #     out = self.obj.set_nuvlabox_node_label('id')
-    #     self.assertFalse(out[0],
-    #                      'Set node label even though Node is missing its Spec')
-    #     self.assertTrue(out[1].startswith('Unable to set NuvlaBox node label'),
-    #                     'Got the wrong error message while failing to set node label due to invalid Node')
-    #
-    #     # otherwise, get its labels. update only if label is missing
-    #     node.attrs = {'Spec': {'Labels': {ContainerRuntime.utils.node_label_key: 'foo'}}}   # already labeled
-    #     self.obj.client.nodes.get.return_value = node
-    #     self.assertEqual(self.obj.set_nuvlabox_node_label('id'), (True, None),
-    #                      'Failed to set node label when label is already set')
-    #     node.update.assert_not_called()
-    #
-    #     node.attrs = {'Spec': {'Labels': {}}}   # no labels
-    #     self.obj.client.nodes.get.return_value = node
-    #     self.assertEqual(self.obj.set_nuvlabox_node_label('id'), (True, None),
-    #                      'Failed to update node label')
-    #     node.update.assert_called_once_with({'Labels': {ContainerRuntime.utils.node_label_key: 'True'}})
-    #
-    #     # and if Node id is not provided, infer it
-    #     mock_get_node_id.assert_not_called()
-    #     mock_get_node_id.return_value = 'id2'
-    #     self.assertEqual(self.obj.set_nuvlabox_node_label(), (True, None),
-    #                      'Failed to update node label when no node ID is provided')
-    #     mock_get_node_id.assert_called_once()
-    #
-    # def test_restart_credentials_manager(self):
-    #     self.obj.client.api.restart.return_value = None
-    #     self.assertIsNone(self.obj.restart_credentials_manager(),
-    #                       'Failed to restart credentials manager')
-    #
-    #     # same if NotFound
-    #     self.obj.client.api.restart.side_effect = docker.errors.NotFound('', requests.Response())
-    #     self.assertIsNone(self.obj.restart_credentials_manager(),
-    #                       'Failed to cope with component not being found')
-    #
-    #     # and raise otherwise
-    #     self.obj.client.api.restart.side_effect = docker.errors.APIError('', requests.Response())
-    #     self.assertRaises(docker.errors.APIError, self.obj.restart_credentials_manager)
-    #
-    # @mock.patch('requests.get')
-    # def test_find_nuvlabox_agent_container(self, mock_get):
-    #     # if API error, get None
-    #     mock_get.side_effect = requests.exceptions.ConnectionError
-    #     self.assertEqual(self.obj.find_nuvlabox_agent_container(), (None, 'Agent API is not available'),
-    #                      'Tried to find agent even though its API is down')
-    #
-    #     response = mock.MagicMock()
-    #     response.raise_for_status.return_value = None
-    #     mock_get.reset_mock(side_effect=True)
-    #     mock_get.return_value = response
-    #     self.obj.client.containers.get.return_value = 'foo'
-    #     self.assertEqual(self.obj.find_nuvlabox_agent_container(), ('foo', None),
-    #                      'Failed to find Agent container')
-    #
-    #     response.raise_for_status.side_effect = TimeoutError
-    #     self.assertRaises(TimeoutError, self.obj.find_nuvlabox_agent_container)
-    #
-    # def test_list_all_containers_in_this_node(self):
-    #     # simple lookup
-    #     self.obj.client.containers.list.return_value = []
-    #     self.assertEqual(self.obj.list_all_containers_in_this_node(), [],
-    #                      'Failed to list all containers')
-    #     self.obj.client.containers.list.assert_called_once_with(all=True)
-    #
-    # @mock.patch.object(ContainerRuntime.Docker, 'get_node_info')
-    # def test_count_images_in_this_host(self, mock_get_node_info):
-    #     # lookup
-    #     mock_get_node_info.return_value = {'Images': 123}
-    #     self.assertEqual(self.obj.count_images_in_this_host(), 123,
-    #                      'Failed to get count of images')
-    #
-    # def test_get_version(self):
-    #     self.obj.client.version.return_value = {
-    #         "Components": [
-    #             {"Version": "1.2"}
-    #         ]
-    #     }
-    #     # lookup the major version
-    #     self.assertEqual(self.obj.get_version(), '1',
-    #                      'Failed to get Docker major version')
-    #
-    #     # also work for non-standard versions
-    #     self.obj.client.version.return_value = {
-    #         "Components": [
-    #             {"Version": "v1.2"}
-    #         ]
-    #     }
-    #     self.assertEqual(self.obj.get_version(), '1',
-    #                      'Failed to get Docker major version from non-standard installation')
+    def test_is_coe_enabled(self):
+        # always True for k8s
+        self.assertTrue(self.obj.is_coe_enabled())
+
+    def test_infer_on_stop_docker_image(self):
+        # n/a for k8s
+        self.assertIsNone(self.obj.infer_on_stop_docker_image(),
+                          'Tried to infer on-stop details for k8s, where it is not applicable')
+
+    def test_launch_nuvlabox_on_stop(self):
+        # n/a for k8s
+        self.assertIsNone(self.obj.launch_nuvlabox_on_stop('none'),
+                          'Tried to infer on-stop details for k8s, where it is not applicable')
+
+    @mock.patch('system_manager.common.ContainerRuntime.Kubernetes.get_node_info')
+    def test_get_node_id(self, mock_get_node_info):
+        mock_get_node_info.return_value = fake.mock_kubernetes_node('node-name')
+        # lookup
+        self.assertTrue(self.obj.get_node_id().startswith('node-name'),
+                        'Failed to get Kubernetes Node ID')
+
+    def test_list_nodes(self):
+        list_nodes = mock.MagicMock()
+        list_nodes.items = [fake.mock_kubernetes_node('1'), fake.mock_kubernetes_node('2')]
+        self.obj.client.list_node.return_value = list_nodes
+
+        out = self.obj.list_nodes()
+        self.assertEqual(len(out), 2,
+                         'Failed to list all k8s nodes')
+        self.obj.client.list_node.assert_called_once_with()
+        self.assertEqual(list(map(lambda x: x.metadata.name[0], out)), ['1', '2'],
+                         'Returned k8s nodes do not match the expected')
+
+    @mock.patch('system_manager.common.ContainerRuntime.Kubernetes.list_nodes')
+    def test_get_cluster_managers(self, mock_list_nodes):
+        node_one = fake.mock_kubernetes_node('1')
+        node_two = fake.mock_kubernetes_node('2')
+
+        # if nodes have no labels, then there are no managers
+        mock_list_nodes.return_value = [node_one, node_two]
+        self.assertEqual(self.obj.get_cluster_managers(), [],
+                         'Got cluster managers even though there are none')
+
+        # if master keywords are not in the labels, then there are no managers again
+        node_one.metadata.labels = ['not-a-manager']
+        mock_list_nodes.return_value = [node_one, node_two]
+        self.assertEqual(self.obj.get_cluster_managers(), [],
+                         'Mistaken a worker by a manager')
+
+        # otherwise, get the manager
+        node_two.metadata.labels = ['node-role.kubernetes.io/master']
+        self.assertEqual(self.obj.get_cluster_managers(), [node_two.metadata.name],
+                         'Failed to get k8s cluster manager')
+
+    def test_read_system_issues(self):
+        # not implemented for k8s
+        self.assertEqual(self.obj.read_system_issues(None), ([], []),
+                         'Failed to read system errors and warnings for k8s')
+
+    def test_set_nuvlabox_node_label(self):
+        # n/a for k8s
+        self.assertEqual(self.obj.set_nuvlabox_node_label(), (True, None),
+                         'Unexpected output for method which is not applicable to k8s')
+
+    def test_restart_credentials_manager(self):
+        # it just logs and waits for the container to restart itself
+        self.assertIsNone(self.obj.restart_credentials_manager(),
+                          'Should just wait for pod to restart itself')
+
+    def test_find_nuvlabox_agent_container(self):
+        pods = mock.MagicMock()
+        # if cannot find pod, get None
+        pods.items = []
+        self.obj.client.list_namespaced_pod.return_value = pods
+        self.assertEqual(self.obj.find_nuvlabox_agent_container()[0], None,
+                         'Found agent pod when it should not exist')
+        self.assertTrue(self.obj.find_nuvlabox_agent_container()[1].startswith('There are no pods'),
+                        'Got the wrong error message when no pods are found')
+
+        # if it exists, but the name is not "agent", get None
+        pods.items = [fake.mock_kubernetes_pod('pod-wrong-name')]
+        self.obj.client.list_namespaced_pod.return_value = pods
+        self.assertEqual(self.obj.find_nuvlabox_agent_container()[0], None,
+                         'Found agent pod when pod name does not match')
+        self.assertTrue(self.obj.find_nuvlabox_agent_container()[1].startswith('Cannot find agent container within'),
+                        'Got the wrong error message when there is a pod name mismatch')
+
+        # otherwise, get the container back
+        pods.items = [fake.mock_kubernetes_pod('agent')]
+        self.obj.client.list_namespaced_pod.return_value = pods
+        self.assertEqual(self.obj.find_nuvlabox_agent_container()[0].name, 'agent',
+                         'Failed to find agent container')
+        self.assertIsNone(self.obj.find_nuvlabox_agent_container()[1],
+                          'Got an error message on success')
+
+    def test_list_all_containers_in_this_node(self):
+        # no containers = get []
+        pods = mock.MagicMock()
+        pods.items = []
+        self.obj.client.list_pod_for_all_namespaces.return_value = pods
+        self.assertEqual(self.obj.list_all_containers_in_this_node(), [],
+                         'Got k8s containers when there are none')
+
+        # otherwise, get all their info
+        pods = mock.MagicMock()
+        pods.items = [fake.mock_kubernetes_pod('one'), fake.mock_kubernetes_pod('two')]
+        self.obj.client.list_pod_for_all_namespaces.return_value = pods
+        self.assertEqual(len(self.obj.list_all_containers_in_this_node()),
+                         len(pods.items) * len(fake.mock_kubernetes_pod().status.container_statuses),
+                         'Failed to get all k8s containers')
+
+        self.assertTrue(all(True for x in self.obj.list_all_containers_in_this_node() if isinstance(x, str)),
+                        'Expecting list of strings')
+
+    @mock.patch('system_manager.common.ContainerRuntime.Kubernetes.get_node_info')
+    def test_count_images_in_this_host(self, mock_get_node_info):
+        # lookup
+        mock_get_node_info.return_value = fake.mock_kubernetes_node()
+        self.assertEqual(self.obj.count_images_in_this_host(), len(fake.mock_kubernetes_node().status.images),
+                         'Failed to get count of images in k8s node')
+
+    @mock.patch('system_manager.common.ContainerRuntime.Kubernetes.get_node_info')
+    def test_get_version(self, mock_get_node_info):
+        # lookup
+        mock_get_node_info.return_value = fake.mock_kubernetes_node()
+        self.assertEqual(self.obj.get_version(), 'v1',
+                         'Failed to get kubelet version')

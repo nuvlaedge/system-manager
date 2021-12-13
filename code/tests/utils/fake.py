@@ -50,7 +50,7 @@ def base_pod(name: str=None, phase: str='running'):
                     'state': ''
                 },
                 {
-                    'name': 'container2',
+                    'name': name if name else 'container2',
                     'ready': True,
                     'restart_count': 2,
                     'state': ''
@@ -118,6 +118,10 @@ def mock_kubernetes_deployment():
 def mock_kubernetes_node(uid: str=None, ready: bool=True):
     node = {
         'status': {
+            'images': [
+                'image1',
+                'image2'
+            ],
             'node_info': {
                 'os_image': 'FakeOS',
                 'kernel_version': 'fake kernel v0',
