@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import docker
 import logging
 import mock
 import os
-import requests
 import sys
 import unittest
 import tests.utils.fake as fake
