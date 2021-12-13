@@ -326,7 +326,7 @@ class SuperviseTestCase(unittest.TestCase):
                           'Failed to see that DG network is not set')
         target_network.connect.assert_called_once_with('container-name')
 
-    def test_
+    # def test_
 
 
 
