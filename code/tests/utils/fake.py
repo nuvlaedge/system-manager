@@ -167,9 +167,9 @@ class Fake(object):
 
 
 class MockContainer(object):
-    def __init__(self, status='paused', myid=None):
+    def __init__(self, name=None, status='paused', myid=None):
         self.status = status
-        self.name = random.randint(100, 999)
+        self.name = name if name else random.randint(100, 999)
         self.id = random.randint(100, 999) if not myid else myid
         self.labels = {
             'com.docker.compose.project.working_dir': '/workdir',
@@ -194,6 +194,23 @@ class MockContainer(object):
 
     def kill(self):
         """ Not implemented """
+        pass
+
+
+class MockService(object):
+    def __init__(self, name, net_id):
+        self.name = name
+        self.updated = None
+        self.attrs = {
+            'Endpoint': {
+                'VirtualIPs': [
+                    {'NetworkID': net_id}
+                ]
+            }
+        }
+
+    def update(self, **kwargs):
+        self.updated = True
         pass
 
 
