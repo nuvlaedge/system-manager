@@ -2,12 +2,9 @@
 # -*- coding: utf-8 -*-
 
 from system_manager.Requirements import SoftwareRequirements
-import json
 import logging
 import mock
-import requests
 import unittest
-from tests.utils.fake import Fake, FakeNuvlaApi
 
 
 class SoftwareRequirementsTestCase(unittest.TestCase):

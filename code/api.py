@@ -78,7 +78,7 @@ def dashboard():
             return render_template("loading.html")
 
         return render_template("dashboard.html", cpus_total=nuvlabox_status.get("cpus"),
-                               memory_total="%.2f GB" % float(int(nuvlabox_status.get("memory"))/1024),
+                               memory_total="%.2f GB" % float(int(nuvlabox_status.get("memory", 0))/1024),
                                disk_total="%s GB" % nuvlabox_status.get("disk"),
                                cpu_usage=nuvlabox_status.get("cpu-usage"),
                                memory_usage=nuvlabox_status.get("memory-usage"),

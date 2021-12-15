@@ -8,31 +8,6 @@ import kubernetes
 from types import SimpleNamespace
 
 
-def mock_kubernetes_endpoint(name: str):
-    endpoint = {
-        'metadata': {
-            'name': name
-        },
-        'subsets': [
-            {
-                'addresses': [
-                    {
-                        'ip': '172.17.0.52'
-                    }
-                ],
-                'ports': [
-                    {
-                        'name': 'https',
-                        'port': 6443,
-                        'protocol': 'TCP'
-                    }
-                ]
-            }
-        ]
-    }
-    return json.loads(json.dumps(endpoint), object_hook=lambda d: SimpleNamespace(**d))
-
-
 def base_pod(name: str=None, phase: str='running'):
     pod = {
         'metadata': {
@@ -75,44 +50,6 @@ def mock_kubernetes_pod(name: str=None, phase: str='running'):
     for x in pod.status.container_statuses:
         x.state = kubernetes.client.V1ContainerState(waiting=True)
     return pod
-
-
-def mock_kubernetes_pod_metrics(name: str=None, phase: str='running'):
-    pod = base_pod(name, phase)
-    pod['containers'] = [
-        {
-            'name': 'container1',
-            'usage': {
-                'cpu': '100n',
-                'memory': '1Ki'
-            }
-        }
-    ]
-    return pod
-
-
-def mock_kubernetes_deployment():
-    depl = {
-        'spec': {
-            'template': {
-                'spec': {
-                    'containers': [
-                        {
-                            'env': [{
-                                'name': 'FOO',
-                                'value': 'BAR'
-                            }, {
-                                'name': 'templated',
-                                'value_from': 'template'
-                            }
-                            ]
-                        }
-                    ]
-                }
-            }
-        }
-    }
-    return json.loads(json.dumps(depl), object_hook=lambda d: SimpleNamespace(**d))
 
 
 def mock_kubernetes_node(uid: str=None, ready: bool=True):
@@ -187,6 +124,8 @@ class MockContainer(object):
             },
             'RestartCount': 1
         }
+        self.am_i_alive = True
+        self.is_alive_counter = mock.MagicMock()
 
     def remove(self):
         """ Not implemented """
@@ -195,6 +134,10 @@ class MockContainer(object):
     def kill(self):
         """ Not implemented """
         pass
+
+    def is_alive(self):
+        self.is_alive_counter()
+        return self.am_i_alive
 
 
 class MockService(object):
@@ -214,14 +157,28 @@ class MockService(object):
         pass
 
 
-class MockDockerNode(object):
-    def __init__(self, state: str='ready'):
+class MockNetwork(object):
+    def __init__(self, name):
+        self.name = name
+        self.id = random.randint(100, 999)
         self.attrs = {
-            'Status': {
-                'State': state
+            'Containers': {
+                'c1': {},
+                'c2': {}
             }
         }
-        self.id = random.randint(100, 999)
+        self.remove_counter = mock.MagicMock()
+        self.disconnect_counter = mock.MagicMock()
+        self.connect_counter = mock.MagicMock()
+
+    def remove(self):
+        self.remove_counter()
+
+    def disconnect(self, _id):
+        self.disconnect_counter()
+
+    def connect(self, _id, **kwargs):
+        self.connect_counter()
 
 
 class FakeRequestsResponse(object):
@@ -231,46 +188,3 @@ class FakeRequestsResponse(object):
 
     def json(self):
         return self.json_response
-
-
-class FakeNuvlaApi(object):
-    """ Fake the nuvla.api module """
-    def __init__(self, reference_api_keys, **kwargs):
-        self.api_keys = reference_api_keys
-        self.kwargs = kwargs
-        self.mock_response = self.Response(self.kwargs.get('id', 'fake/id'), self.kwargs.get('data', {}))
-
-    class Response(object):
-        def __init__(self, id, data):
-            self.data = {**{'id': id}, **data}
-            self.resources = [json.loads(json.dumps(self.data), object_hook=lambda d: SimpleNamespace(**d))]
-
-    def get(self, id, **kwargs):
-        return self.Response(id, self.kwargs.get('data', {}))
-
-    def edit(self, nuvlabox_id, payload):
-        return self.mock_response
-
-    def delete(self, nuvlabox_id):
-        return self.mock_response
-
-    def add(self, resource, _):
-        return self.mock_response
-
-    def search(self, resource, **kwargs):
-        return self.mock_response
-
-    def login_apikey(self, key, secret):
-        return self.mock_response
-
-    def _cimi_post(self, resource, **kwargs):
-        if kwargs:
-            return self.add(resource, None)
-        else:
-            return self.api_keys
-
-    def _cimi_get(self, id):
-        return self.get(id)
-
-    def _cimi_put(self, id, **kwargs):
-        return self.edit(id, None)

@@ -15,9 +15,14 @@ from system_manager.common.logging import logging
 from system_manager.common import utils
 from system_manager.common.ContainerRuntime import Containers
 from threading import Timer
+from typing import Union
 
 
 class ClusterNodeCannotManageDG(Exception):
+    pass
+
+
+class BreakDGManagementCycle(Exception):
     pass
 
 
@@ -225,7 +230,7 @@ class Supervise(Containers):
                 with open(file_path) as fp:
                     content = fp.read()
 
-                cert_obj = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, content)
+                cert_obj = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, content.encode())
 
                 end_date = cert_obj.get_notAfter().decode()
                 formatted_end_date = datetime(int(end_date[0:4]),
@@ -360,34 +365,29 @@ class Supervise(Containers):
         except Exception as e:
             self.log.error(f'Cannot add network {target_network.name} to DG {self.data_gateway_object.name}: {str(e)}')
 
-    def manage_docker_data_gateway(self):
-        """ Sets the DG service.
-
-        If we need to start or restart the DG or any of its components, we always "return" and resume the DG setup
-        on the next cycle
-
-        :return:
+    def manage_docker_data_gateway_network(self, data_gateway_networks: list) -> Union[docker.models.networks.Network,
+                                                                                       None]:
         """
+        Assesses the state of the DG network. Creates it if it doesn't exist or runs a sanity check at it if it does
 
-        # ## 1: if the DG network already exists, then chances are that the DG has already been deployed
-        dg_networks = self.find_docker_network([utils.nuvlabox_shared_net])
-        if not dg_networks:
+        :param data_gateway_networks: list of Docker networks
+        :return: the DG network, or None if the DG mgmt cycle should be interrupted
+        """
+        if not data_gateway_networks:
             # network doesn't exist, so let's create it as well
             try:
                 self.setup_docker_network(utils.nuvlabox_shared_net)
+                raise BreakDGManagementCycle
             except ClusterNodeCannotManageDG:
                 # this node can't setup networks
                 # However, the network might already exist, we simply don't see it. Try to connect agent to it anyway
-                pass
-            else:
-                # resume the DG mgmt activities on the next cycle
-                return
+                return None
         else:
             # make sure the network driver makes sense, to avoid having a bridge network on a Swarm node
-            dg_network = dg_networks[0]
+            dg_network = data_gateway_networks[0]
             if self.is_cluster_enabled:
                 # if swarm is enabled, a container-based data-gateway doesn't make sense
-                bridge_nets = list(filter(lambda o: o.attrs.get('Driver', '') == 'bridge', dg_networks))
+                bridge_nets = list(filter(lambda o: o.attrs.get('Driver', '') == 'bridge', data_gateway_networks))
                 for leftover_bridge_net in bridge_nets:
                     leftover_bridge_net.reload()
                     self.destroy_docker_network(leftover_bridge_net)
@@ -402,16 +402,22 @@ class Supervise(Containers):
                         except Exception as e:
                             self.log.error(f'Could not remove old {self.data_gateway_name} container: {str(e)}')
 
-                running_nets = list(set(dg_networks) - set(bridge_nets))
+                running_nets = list(set(data_gateway_networks) - set(bridge_nets))
                 # is there an overlay network as well? if not, reset cycle cause network needs to be recreated
                 if not running_nets:
-                    return
+                    return None
 
                 dg_network = running_nets[0]
 
-        # ## 2: DG network exists, but does the DG?
-        # check the existence of the DG
-        # this function sets self.data_gateway_object
+            return dg_network
+
+    def manage_docker_data_gateway_object(self, data_gateway_network: docker.models.networks.Network) -> None:
+        """
+        Check the existence of the DG and set self.data_gateway_object
+
+        :param data_gateway_network: the DG network object
+        :return:
+        """
         self.data_gateway_object = None
         try:
             self.find_data_gateway(self.data_gateway_name)
@@ -434,10 +440,66 @@ class Supervise(Containers):
                         self.operational_status.append((utils.status_degraded, 'Unable to launch Data Gateway'))
 
                 # NOTE: resume on the next cycle
-                return
+                raise BreakDGManagementCycle
             else:
                 # double check DG still has the right network
-                self.check_dg_network(dg_network)
+                self.check_dg_network(data_gateway_network)
+
+        return
+
+    def manage_docker_data_gateway_connect_to_network(self, containers_to_connect: list,
+                                                      agent_container_id: str) -> None:
+        """
+        Connect this node's Agent container (+data source containers) to DG
+
+        :param containers_to_connect: all containers to be connected to the DG network
+        :param agent_container_id: ID of the agent container that is also to be connected
+        :return:
+        """
+        for ccont in containers_to_connect:
+            if utils.nuvlabox_shared_net not in \
+                    ccont.attrs.get('NetworkSettings', {}).get('Networks', {}).keys():
+                self.log.info(f'Connecting ({ccont.name}) '
+                              f'to network {utils.nuvlabox_shared_net}')
+                try:
+                    self.container_runtime.client.api.connect_container_to_network(ccont.id, utils.nuvlabox_shared_net)
+                except Exception as e:
+                    # doe Network exist? If so, and agent was not connected, need to break and retry
+                    if "notfound" not in str(e).replace(' ', '').lower():
+                        if ccont.id == agent_container_id:
+                            self.log.error(f'Error while connecting NuvlaBox Agent to Data Gateway network: {str(e)}')
+                            self.operational_status.append((utils.status_degraded,
+                                                            f'Data Gateway connection error: {str(e)}'))
+                            raise BreakDGManagementCycle
+                        # else, this is a data-source container and not as critical
+                    err_msg = f'Cannot connect {ccont.name} to Data Gateway network'
+                    self.operational_status.append((utils.status_degraded, err_msg))
+
+                    self.log.warning(f'{err_msg}: {str(e)}')
+
+        return
+
+    def manage_docker_data_gateway(self):
+        """ Sets the DG service.
+
+        If we need to start or restart the DG or any of its components, we always "return" and resume the DG setup
+        on the next cycle
+
+        :return:
+        """
+
+        # ## 1: if the DG network already exists, then chances are that the DG has already been deployed
+        dg_networks = self.find_docker_network([utils.nuvlabox_shared_net])
+        try:
+            dg_network = self.manage_docker_data_gateway_network(dg_networks)
+        except BreakDGManagementCycle:
+            return
+
+        # ## 2: DG network exists, but does the DG?
+        try:
+            self.manage_docker_data_gateway_object(dg_network)
+        except BreakDGManagementCycle:
+            return
 
         # ## 3: finally, connect this node's Agent container (+data source containers) to DG
         agent_container = self.find_nuvlabox_agent()
@@ -452,28 +514,10 @@ class Supervise(Containers):
             return
 
         connecting_containers = [agent_container] + data_source_containers
-        for ccont in connecting_containers:
-            if utils.nuvlabox_shared_net not in \
-                    ccont.attrs.get('NetworkSettings', {}).get('Networks', {}).keys():
-                self.log.info(f'Connecting ({ccont.name}) '
-                              f'to network {utils.nuvlabox_shared_net}')
-                try:
-                    self.container_runtime.client.api.connect_container_to_network(ccont.id, utils.nuvlabox_shared_net)
-                except Exception as e:
-                    if "notfound" in str(e).replace(' ', '').lower():
-                        # nothing to do. Network doesn't exist at all
-                        pass
-                    else:
-                        if ccont.id == agent_container_id:
-                            self.log.error(f'Error while connecting NuvlaBox Agent to Data Gateway network: {str(e)}')
-                            self.operational_status.append((utils.status_degraded,
-                                                            f'Data Gateway connection error: {str(e)}'))
-                            return
-                        # else, this is a data-source container and not as critical
-                    err_msg = f'Cannot connect {ccont.name} to Data Gateway network'
-                    self.operational_status.append((utils.status_degraded, err_msg))
-
-                    self.log.warning(f'{err_msg}: {str(e)}')
+        try:
+            self.manage_docker_data_gateway_connect_to_network(connecting_containers, agent_container_id)
+        except BreakDGManagementCycle:
+            return
 
         agent_query_url = f'http://{self.container_runtime.agent_dns}/api/healthcheck'
         r, err = self.container_runtime.test_agent_connection(agent_query_url)
@@ -486,12 +530,20 @@ class Supervise(Containers):
 
         if self.agent_dg_failed_connection > 3:
             # do something after 3 reports
-            self.log.warning('Agent seems unable to reach the Data Gateway. Restarting the Data Gateway')
+            self.restart_data_gateway()
             self.agent_dg_failed_connection = 0
-            if self.is_cluster_enabled and self.i_am_manager:
-                self.data_gateway_object.force_update()
-            else:
-                self.data_gateway_object.restart()
+
+    def restart_data_gateway(self):
+        """
+        Simply restarts the DG object
+
+        :return:
+        """
+        self.log.warning('Agent seems unable to reach the Data Gateway. Restarting the Data Gateway')
+        if self.is_cluster_enabled and self.i_am_manager:
+            self.data_gateway_object.force_update()
+        else:
+            self.data_gateway_object.restart()
 
     @cluster_workers_cannot_manage
     def find_data_gateway(self, name: str) -> bool:
@@ -631,6 +683,64 @@ class Supervise(Containers):
 
         return True
 
+    def get_project_name(self) -> str:
+        """"""
+        try:
+            myself = self.container_runtime.client.containers.get(socket.gethostname())
+        except docker.errors.NotFound:
+            err = f'Cannot find this container by hostname: {socket.gethostname()}. Cannot proceed'
+            self.log.error(err)
+            self.operational_status.append((utils.status_degraded, 'System Manager container lookup error'))
+            raise Exception(err)
+
+        try:
+            project_name = myself.labels['com.docker.compose.project']
+        except KeyError:
+            self.log.warning(f'Cannot infer Docker Compose project name from the labels in {myself.name}.'
+                             f'Trying to infer from container name')
+            project_name = myself.name.split('_')[0] if len(myself.name.split('_')) > 1 else None
+            if not project_name:
+                msg = 'Impossible to infer Docker Compose project name!'
+                self.log.error(msg)
+                self.operational_status.append((utils.status_degraded, msg))
+                raise Exception(msg)
+
+        return project_name
+
+    def fix_network_connectivity(self, all_containers: list, target_network: docker.DockerClient.networks) -> None:
+        """
+        Goes through the list of provided containers, and if they are not connected to the target network, connect them
+
+        :param all_containers: list of containers to fix
+        :param target_network: network to attach the container to
+        :return:
+        """
+        for container in all_containers:
+            if container.attrs.get('HostConfig', {}).get('NetworkMode', '') == 'host':
+                # containers in host mode are not affected
+                continue
+
+            if not any(net_id in container.attrs.get('NetworkSettings', {}).get('Networks', {}).keys()
+                       for net_id in [target_network.name, target_network.id]):
+                self.log.warning(f'Container {container.name} lost its network {target_network.name}.'
+                                 f'Reconnecting...')
+
+                raw_service_name = container.labels.get('com.docker.compose.service')
+                service_name = [raw_service_name] if raw_service_name else []
+                try:
+                    target_network.connect(container.name, aliases=service_name)
+                except docker.errors.APIError as e:
+                    if "already exists in network" in str(e).lower():
+                        continue
+                    elif "notfound" in str(e).replace(' ', '').lower():
+                        self.log.warning(f'Network {target_network.name} ceased to exist '
+                                         f'during connectivity check. Nothing to do.')
+                        return
+                    self.log.error(f'Unable to reconnect {container.name} to '
+                                   f'network {target_network.name}: {str(e)}')
+                    self.operational_status.append((utils.status_degraded,
+                                                    'NuvlaBox containers lost their network connection'))
+
     def check_nuvlabox_docker_connectivity(self):
         """
         Makes sure all NBE containers are connected to the original bridge network (at least)
@@ -644,23 +754,9 @@ class Supervise(Containers):
         """
 
         try:
-            myself = self.container_runtime.client.containers.get(socket.gethostname())
-        except docker.errors.NotFound:
-            self.log.error(f'Cannot find this container by hostname: {socket.gethostname()}. Cannot proceed')
-            self.operational_status.append((utils.status_degraded, 'System Manager container lookup error'))
+            project_name = self.get_project_name()
+        except:
             return
-
-        try:
-            project_name = myself.labels['com.docker.compose.project']
-        except KeyError:
-            self.log.warning(f'Cannot infer Docker Compose project name from the labels in {myself.name}.'
-                             f'Trying to infer from container name')
-            project_name = myself.name.split('_')[0] if len(myself.name.split('_')) > 1 else None
-            if not project_name:
-                msg = 'Impossible to infer Docker Compose project name!'
-                self.log.error(msg)
-                self.operational_status.append((utils.status_degraded, msg))
-                return
 
         original_project_label = f'com.docker.compose.project={project_name}'
         filters = {
@@ -677,32 +773,52 @@ class Supervise(Containers):
             self.log.warning('Unable to check nuvlabox connectivity: original containers/network not found')
             return
 
-        for container in original_nb_containers:
-            if container.attrs.get('HostConfig', {}).get('NetworkMode', '') == 'host':
-                # containers in host mode are not affected
-                continue
+        # there should only be 1 original nb internal network, so take the 1st one
+        self.fix_network_connectivity(original_nb_containers, original_nb_internal_network[0])
 
-            # there should only be 1 original nb internal network, so take the 1st one
-            if not any(net_id in container.attrs.get('NetworkSettings', {}).get('Networks', {}).keys()
-                       for net_id in [original_nb_internal_network[0].name, original_nb_internal_network[0].id]):
-                self.log.warning(f'Container {container.name} lost its network {original_nb_internal_network[0].name}.'
-                                 f'Reconnecting...')
+    def heal_created_container(self, container: docker.DockerClient.containers) -> None:
+        """
+        Takes a container in a created state, and heals it by forcing it to start
 
-                raw_service_name = container.labels.get('com.docker.compose.service')
-                service_name = [raw_service_name] if raw_service_name else []
-                try:
-                    original_nb_internal_network[0].connect(container.name, aliases=service_name)
-                except docker.errors.APIError as e:
-                    if "already exists in network" in str(e).lower():
-                        continue
-                    elif "notfound" in str(e).replace(' ', '').lower():
-                        self.log.warning(f'Network {original_nb_internal_network[0].name} ceased to exist '
-                                         f'during connectivity check. Nothing to do.')
-                        return
-                    self.log.error(f'Unable to reconnect {container.name} to '
-                                   f'network {original_nb_internal_network[0].name}: {str(e)}')
-                    self.operational_status.append((utils.status_degraded,
-                                                    'NuvlaBox containers lost their network connection'))
+        :param container: container object
+        :return:
+        """
+        try:
+            self.container_runtime.client.api.start(container.id)
+        except docker.errors.APIError as e:
+            self.log.error(f'Cannot resume container {container.name}. Reason: {str(e)}')
+
+        return
+
+    def heal_exited_container(self, container: docker.DockerClient.containers) -> None:
+        """
+        Heals a container that has exited unexpectedly
+        :param container: container object
+        :return:
+        """
+        attrs = container.attrs
+        state = attrs.get('State', {})
+        exit_code = state.get('ExitCode', 0)
+        if exit_code > 0:
+            # is it already restarting?
+            if state.get('Restarting', False):
+                # nothing to do then
+                return
+
+            if attrs.get('HostConfig', {}).get('RestartPolicy', {}).get('Name', 'no').lower() in ['no']:
+                return
+
+            # at this stage we simply need to try to restart it
+            if (container.name in self.nuvlabox_containers_restarting and
+                not self.nuvlabox_containers_restarting[container.name].is_alive()) or \
+                    container.name not in self.nuvlabox_containers_restarting:
+                self.log.warning(f'Container {container.name} down (code {exit_code}). Scheduling restart')
+                self.nuvlabox_containers_restarting[container.name] = Timer(30,
+                                                                            self.restart_container,
+                                                                            (container.name, container.id))
+                self.nuvlabox_containers_restarting[container.name].start()
+
+        return
 
     def docker_container_healer(self):
         """
@@ -723,41 +839,19 @@ class Supervise(Containers):
 
         for container in self.nuvlabox_containers:
             status = container.status.lower()
-            if status not in ["paused", "running", "restarting"]:
-                # what to do if:
-                # . status is "created"?
-                # .. just start the container
-                if status == 'created':
-                    try:
-                        self.container_runtime.client.api.start(container.id)
-                        continue
-                    except docker.errors.APIError as e:
-                        self.log.error(f'Cannot resume container {container.name}. Reason: {str(e)}')
+            if status in ["paused", "running", "restarting"]:
+                continue
 
-                # . status is "exited"?
-                # .. understand why. If exit code is 0, then it exited gracefully...thus it is not broken
-                if status == 'exited':
-                    attrs = container.attrs
-                    state = attrs.get('State', {})
-                    exit_code = state.get('ExitCode', 0)
-                    if exit_code > 0:
-                        # is it already restarting?
-                        if state.get('Restarting', False):
-                            # nothing to do then
-                            continue
+            # what to do if:
+            # . status is "created"?
+            # .. just start the container
+            if status == 'created':
+                self.heal_created_container(container)
 
-                        if attrs.get('HostConfig', {}).get('RestartPolicy', {}).get('Name', 'no').lower() in ['no']:
-                            continue
-
-                        # at this stage we simply need to try to restart it
-                        if (container.name in self.nuvlabox_containers_restarting and
-                                not self.nuvlabox_containers_restarting[container.name].is_alive()) or \
-                                container.name not in self.nuvlabox_containers_restarting:
-                            self.log.warning(f'Container {container.name} down (code {exit_code}). Scheduling restart')
-                            self.nuvlabox_containers_restarting[container.name] = Timer(30,
-                                                                                        self.restart_container,
-                                                                                        (container.name, container.id))
-                            self.nuvlabox_containers_restarting[container.name].start()
+            # . status is "exited"?
+            # .. understand why. If exit code is 0, then it exited gracefully...thus it is not broken
+            if status == 'exited':
+                self.heal_exited_container(container)
 
     def restart_container(self, name, container_id):
         """
