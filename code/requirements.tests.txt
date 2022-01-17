@@ -1,0 +1,7 @@
+mock
+pytest
+docker
+requests
+kubernetes
+pyopenssl
+Flask==1.0.0

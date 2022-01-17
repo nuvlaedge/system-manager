@@ -216,9 +216,9 @@ class Kubernetes(ContainerRuntime):
                                                       timestamps=True,
                                                       since_seconds=since).splitlines()
 
-            log_with_name = f"\n [{container.name}]".join(log)
+            log_with_name = f"\n [{container.name}] ".join(log)
 
-            final_logs = f' [{container.name}] {log_with_name} \n'
+            final_logs = f' [{container.name}] {log_with_name}\n'
             pod_logs.append(final_logs.splitlines())
 
         return pod_logs
@@ -231,11 +231,7 @@ class Kubernetes(ContainerRuntime):
 
     def get_node_info(self):
         if self.host_node_name:
-            this_node = self.client.read_node(self.host_node_name)
-            try:
-                return this_node
-            except AttributeError:
-                self.logging.warning(f'Cannot infer node information for node "{self.host_node_name}"')
+            return self.client.read_node(self.host_node_name)
 
         return None
 
