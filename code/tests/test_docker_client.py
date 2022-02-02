@@ -4,6 +4,7 @@
 import docker
 import logging
 import mock
+import os
 import requests
 import unittest
 import system_manager.common.ContainerRuntime as ContainerRuntime
@@ -12,7 +13,16 @@ import system_manager.common.ContainerRuntime as ContainerRuntime
 class DockerTestCase(unittest.TestCase):
 
     def setUp(self) -> None:
-        self.obj = ContainerRuntime.Docker(logging)
+        os.environ.setdefault('DATA_GATEWAY_NETWORK_ENCRYPTION', 'false')
+        test_obj = ContainerRuntime.Docker(logging)
+        self.assertEqual(test_obj.dg_encrypt_options, {},
+                         'Unable to disable network encryption for Data Gateway')
+
+        os.environ.pop('DATA_GATEWAY_NETWORK_ENCRYPTION')
+        with mock.patch('system_manager.common.ContainerRuntime.open') as mock_open:
+            self.obj = ContainerRuntime.Docker(logging)
+            mock_open.assert_called_once()
+
         self.obj.client = mock.MagicMock()
         logging.disable(logging.CRITICAL)
 
@@ -21,6 +31,8 @@ class DockerTestCase(unittest.TestCase):
 
     def test_init(self):
         # the base class should also have been set
+        self.assertEqual(self.obj.dg_encrypt_options, {'encrypted': 'True'},
+                         'Network encryption should be enabled by default')
         self.assertEqual(self.obj.my_component_name, "system-manager",
                          'Docker client was not properly initialized')
 

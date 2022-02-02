@@ -588,8 +588,8 @@ class Supervise(Containers):
         containers_attached = network.attrs.get('Containers')
 
         if containers_attached:
-            self.log.warning('The following containers need to be detached from the network first: ' \
-                            f'{",".join(list(containers_attached.keys()))}')
+            self.log.warning('The following containers need to be detached from the network first: '
+                             f'{",".join(list(containers_attached.keys()))}')
             for container_id in containers_attached.keys():
                 try:
                     network.disconnect(container_id)
@@ -627,7 +627,7 @@ class Supervise(Containers):
                 self.container_runtime.client.networks.create(net_name,
                                                               driver="overlay",
                                                               attachable=True,
-                                                              options={"encrypted": "True"},
+                                                              options=self.container_runtime.dg_encrypt_options,
                                                               labels=labels)
         except docker.errors.APIError as e:
             if '409' in str(e):

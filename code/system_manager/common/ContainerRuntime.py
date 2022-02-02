@@ -349,6 +349,15 @@ class Docker(ContainerRuntime):
         self.orchestrator = 'docker'
         self.agent_dns = 'agent'
         self.my_component_name = 'system-manager'
+        if os.path.exists(utils.nuvlabox_shared_net_enc_flag):
+            self.dg_encrypt_options = {"encrypted": "True"}
+        else:
+            if os.getenv('DATA_GATEWAY_NETWORK_ENCRYPTION', 'true').lower() == 'true':
+                with open(utils.nuvlabox_shared_net_enc_flag, 'w') as enc_flag:
+                    enc_flag.write('true')
+                self.dg_encrypt_options = {"encrypted": "True"}
+            else:
+                self.dg_encrypt_options = {}
 
     def list_internal_components(self, base_label=utils.base_label):
         return self.client.containers.list(filters={"label": base_label})
