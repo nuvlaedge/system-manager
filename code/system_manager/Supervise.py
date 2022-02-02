@@ -186,28 +186,33 @@ class Supervise(Containers):
 
         if os.path.exists(utils.container_stats_json_file):
             with open(utils.container_stats_json_file) as cstats:
-                container_stats = json.load(cstats)
-
-            for container_stat in container_stats:
-                stats += '<tr>' \
-                         ' <th scope="row">{}</th> ' \
-                         ' <td>{}</td>' \
-                         ' <td>{}</td>' \
-                         ' <td>{}</td>' \
-                         ' <td>{}</td>' \
-                         ' <td>{}</td>' \
-                         ' <td>{}</td>' \
-                         ' <td>{}</td>' \
-                         ' <td>{}</td>' \
-                         '</tr>'.format(container_stat.get('id', '')[:12],
-                                        container_stat.get('name', '')[:25],
-                                        container_stat.get('cpu-percent', 0.0),
-                                        container_stat.get('mem-usage-limit', "MB / MB"),
-                                        container_stat.get('mem-percent', 0.0),
-                                        container_stat.get('net-in-out', "MB / MB"),
-                                        container_stat.get('blk-in-out', "MB / MB"),
-                                        container_stat.get('container-status'),
-                                        container_stat.get('restart-count', 0))
+                try:
+                    container_stats = json.load(cstats)
+                except json.decoder.JSONDecodeError as e:
+                    logging.warning(f'Unable to read container stats ({cstats.read()} '
+                                    f'from {utils.container_stats_json_file}. '
+                                    f'Error: {str(e)}')
+                else:
+                    for container_stat in container_stats:
+                        stats += '<tr>' \
+                                 ' <th scope="row">{}</th> ' \
+                                 ' <td>{}</td>' \
+                                 ' <td>{}</td>' \
+                                 ' <td>{}</td>' \
+                                 ' <td>{}</td>' \
+                                 ' <td>{}</td>' \
+                                 ' <td>{}</td>' \
+                                 ' <td>{}</td>' \
+                                 ' <td>{}</td>' \
+                                 '</tr>'.format(container_stat.get('id', '')[:12],
+                                                container_stat.get('name', '')[:25],
+                                                container_stat.get('cpu-percent', 0.0),
+                                                container_stat.get('mem-usage-limit', "MB / MB"),
+                                                container_stat.get('mem-percent', 0.0),
+                                                container_stat.get('net-in-out', "MB / MB"),
+                                                container_stat.get('blk-in-out', "MB / MB"),
+                                                container_stat.get('container-status'),
+                                                container_stat.get('restart-count', 0))
 
         stats += ' </tbody>' \
                  '</table>'
