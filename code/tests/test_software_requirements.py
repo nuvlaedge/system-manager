@@ -4,12 +4,15 @@
 from system_manager.Requirements import SoftwareRequirements
 import logging
 import mock
+import os
 import unittest
 
 
 class SoftwareRequirementsTestCase(unittest.TestCase):
 
     def setUp(self):
+        # avoid writing of files
+        os.environ.setdefault('DATA_GATEWAY_NETWORK_ENCRYPTION', 'false')
         self.obj = SoftwareRequirements()
         self.obj.container_runtime = mock.MagicMock()
         logging.disable(logging.CRITICAL)

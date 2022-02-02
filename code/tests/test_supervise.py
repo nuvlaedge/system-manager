@@ -4,6 +4,7 @@
 import docker
 import logging
 import mock
+import os
 import requests
 import unittest
 import system_manager.Supervise as Supervise
@@ -16,6 +17,8 @@ class SuperviseTestCase(unittest.TestCase):
     def setUp(self) -> None:
         Supervise.__bases__ = (fake.Fake.imitate(Containers),)
 
+        # avoid writing of files
+        os.environ.setdefault('DATA_GATEWAY_NETWORK_ENCRYPTION', 'false')
         self.obj = Supervise.Supervise()
         self.obj.container_runtime = mock.MagicMock()
         logging.disable(logging.CRITICAL)
@@ -41,6 +44,7 @@ class SuperviseTestCase(unittest.TestCase):
                              'Failed to read content from file')
 
     def test_classify_this_node(self):
+        self.obj.container_runtime = mock.MagicMock()
         self.obj.container_runtime.get_node_id.return_value = 'id'
         # if COE is disabled, get None and set attrs to false
         self.obj.container_runtime.is_coe_enabled.return_value = False
