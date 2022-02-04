@@ -17,8 +17,6 @@ class SuperviseTestCase(unittest.TestCase):
     def setUp(self) -> None:
         Supervise.__bases__ = (fake.Fake.imitate(Containers),)
 
-        # avoid writing of files
-        os.environ.setdefault('DATA_GATEWAY_NETWORK_ENCRYPTION', 'false')
         self.obj = Supervise.Supervise()
         self.obj.container_runtime = mock.MagicMock()
         logging.disable(logging.CRITICAL)

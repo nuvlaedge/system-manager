@@ -19,7 +19,7 @@ base_label = "nuvlabox.component=True"
 node_label_key = "nuvlabox"
 
 nuvlabox_shared_net = 'nuvlabox-shared-network'
-nuvlabox_shared_net_enc_flag = f'{data_volume}/.nuvlabox-shared-net-encrypt'
+nuvlabox_shared_net_unencrypted = f'{data_volume}/.nuvlabox-shared-net-unencrypted'
 overlay_network_service = 'nuvlabox-ack'
 
 container_stats_html_file = "docker_stats.html"
