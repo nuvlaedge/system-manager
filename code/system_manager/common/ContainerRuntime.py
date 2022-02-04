@@ -380,7 +380,7 @@ class Docker(ContainerRuntime):
 
             return {"encrypted": "True"}
 
-    def find_network(self, name: str) -> docker.models.networks.Network:
+    def find_network(self, name: str) -> object:
         """
         Finds a Docker network by name
 

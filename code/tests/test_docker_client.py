@@ -75,6 +75,7 @@ class DockerTestCase(unittest.TestCase):
                          'Failed to catch request for unencrypted network from env var')
         mock_path.assert_called_once_with(ContainerRuntime.utils.nuvlabox_shared_net_unencrypted)
         self.obj.logging = logging_backup
+        os.environ.pop('DATA_GATEWAY_NETWORK_ENCRYPTION')
 
     def test_find_network(self):
         self.obj.client.networks.get.return_value = fake.MockNetwork('foo')
