@@ -13,6 +13,7 @@ services:
       - nuvlabox.deployment=production
     environment:
       - SKIP_MINIMUM_REQUIREMENTS=False
+      - DATA_GATEWAY_NETWORK_ENCRYPTION=True
     restart: on-failure
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3636"]

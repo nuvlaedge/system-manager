@@ -6,6 +6,7 @@ import string
 import time
 from abc import ABC, abstractmethod
 from datetime import datetime
+from pathlib import Path
 from system_manager.common import utils
 
 KUBERNETES_SERVICE_HOST = os.getenv('KUBERNETES_SERVICE_HOST')
@@ -349,6 +350,44 @@ class Docker(ContainerRuntime):
         self.orchestrator = 'docker'
         self.agent_dns = 'agent'
         self.my_component_name = 'system-manager'
+        self.dg_encrypt_options = self.load_data_gateway_network_options()
+
+    def load_data_gateway_network_options(self) -> dict:
+        """
+        Loads the Data Gateway options from disk first, and then from env.
+        If Network already exists, issue warning.
+
+        :return: network creation options [dict]
+        """
+        new = os.getenv('DATA_GATEWAY_NETWORK_ENCRYPTION')
+        if not new:
+            if os.path.exists(utils.nuvlabox_shared_net_unencrypted):
+                return {}
+            else:
+                return {"encrypted": "True"}
+
+        try:
+            self.find_network(utils.nuvlabox_shared_net)
+            self.logging.warning(f'Since {utils.nuvlabox_shared_net} already exists, the provided '
+                                 f'DATA_GATEWAY_NETWORK_ENCRYPTION [{new}] will not be immediately applied. '
+                                 f'Reason: cannot update an existing network.')
+        except docker.errors.NotFound:
+            pass
+        finally:
+            if new.lower() == 'false':
+                Path(utils.nuvlabox_shared_net_unencrypted).touch()
+                return {}
+
+            return {"encrypted": "True"}
+
+    def find_network(self, name: str) -> object:
+        """
+        Finds a Docker network by name
+
+        :param name: name or ID of the network
+        :return: Docker Network object
+        """
+        return self.client.networks.get(name)
 
     def list_internal_components(self, base_label=utils.base_label):
         return self.client.containers.list(filters={"label": base_label})

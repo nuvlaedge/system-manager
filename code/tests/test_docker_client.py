@@ -4,14 +4,18 @@
 import docker
 import logging
 import mock
+import os
 import requests
 import unittest
 import system_manager.common.ContainerRuntime as ContainerRuntime
+import tests.utils.fake as fake
 
 
 class DockerTestCase(unittest.TestCase):
 
-    def setUp(self) -> None:
+    @mock.patch('system_manager.common.ContainerRuntime.Docker.load_data_gateway_network_options')
+    def setUp(self, mock_load_data_gateway_network_options) -> None:
+        mock_load_data_gateway_network_options.return_value = {}
         self.obj = ContainerRuntime.Docker(logging)
         self.obj.client = mock.MagicMock()
         logging.disable(logging.CRITICAL)
@@ -21,8 +25,63 @@ class DockerTestCase(unittest.TestCase):
 
     def test_init(self):
         # the base class should also have been set
+        self.assertEqual(self.obj.dg_encrypt_options, {},
+                         'Network encryption should be enabled by default')
         self.assertEqual(self.obj.my_component_name, "system-manager",
                          'Docker client was not properly initialized')
+
+    @mock.patch.object(ContainerRuntime.Docker, 'find_network')
+    @mock.patch('system_manager.common.ContainerRuntime.Path')
+    @mock.patch('os.path.exists')
+    def test_load_data_gateway_network_options(self, mock_exists, mock_path, mock_find_network):
+        logging_backup = self.obj.logging
+        self.obj.logging = mock.MagicMock()
+        # if no env and NO previous file, get the default TRUE for encryption
+        mock_exists.return_value = False
+        self.assertEqual(self.obj.load_data_gateway_network_options(), {"encrypted": "True"},
+                         'Failed to set default encryption for Data Gateway network')
+        mock_exists.assert_called_once_with(ContainerRuntime.utils.nuvlabox_shared_net_unencrypted)
+
+        # if no env BUT previous "unencrypt" file, get the FALSE for encryption
+        mock_exists.return_value = True
+        self.assertEqual(self.obj.load_data_gateway_network_options(), {},
+                         'Failed to grab persisted config for unencrypted Data Gateway network')
+
+        self.obj.logging.warning.assert_not_called()
+        # when env exists
+        os.environ.setdefault('DATA_GATEWAY_NETWORK_ENCRYPTION', 'something')
+        # if network exists, log and return True, unless explicitly False
+        mock_find_network.return_value = True
+        path_obj = mock.MagicMock()
+        path_obj.touch.return_value = None
+        mock_path.return_value = path_obj
+
+        self.assertEqual(self.obj.load_data_gateway_network_options(), {"encrypted": "True"},
+                         'Failed to default to encrypted network when provided env is not explicitly False')
+        mock_path.assert_not_called()
+        mock_find_network.assert_called_once_with(ContainerRuntime.utils.nuvlabox_shared_net)
+        self.obj.logging.warning.assert_called_once()
+
+        # if network does not exist, same output but no logging
+        mock_find_network.side_effect = docker.errors.NotFound('', requests.Response())
+        self.assertEqual(self.obj.load_data_gateway_network_options(), {"encrypted": "True"},
+                         'Failed to default to encrypted network when data gateway network does not exist')
+        mock_path.assert_not_called()
+        self.obj.logging.warning.assert_called_once()
+
+        # when env var is False, get False and touch file
+        os.environ['DATA_GATEWAY_NETWORK_ENCRYPTION'] = 'FaLsE'
+        self.assertEqual(self.obj.load_data_gateway_network_options(), {},
+                         'Failed to catch request for unencrypted network from env var')
+        mock_path.assert_called_once_with(ContainerRuntime.utils.nuvlabox_shared_net_unencrypted)
+        self.obj.logging = logging_backup
+        os.environ.pop('DATA_GATEWAY_NETWORK_ENCRYPTION')
+
+    def test_find_network(self):
+        self.obj.client.networks.get.return_value = fake.MockNetwork('foo')
+        # this is a simple lookup
+        self.assertEqual(self.obj.find_network('foo').name, 'foo',
+                         'Failed to get Docker network')
 
     def test_list_internal_components(self):
         self.assertIsNotNone(ContainerRuntime.utils.base_label,
