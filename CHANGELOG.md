@@ -1,4 +1,9 @@
 # Changelog
+## [2.3.0] - 2022-03-24
+### Added 
+ - Add org.opencontainers labels
+### Changed
+ - Network nuvlabox-shared-network encryption can optionally be disabled
 ## [2.2.0] - 2021-12-06
 ### Added 
  - explicit reporting of missing minimum requirements
