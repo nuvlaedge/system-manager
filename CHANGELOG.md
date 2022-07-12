@@ -1,4 +1,9 @@
 # Changelog
+## Unreleased
+### Added
+### Changed
+ - Changed main script name to manager_main.py
+ - Changed base docker image to match the rest of the NuvlaEdge services
 ## [2.3.0] - 2022-03-24
 ### Added 
  - Add org.opencontainers labels

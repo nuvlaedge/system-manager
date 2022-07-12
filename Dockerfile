@@ -1,4 +1,5 @@
-FROM python:3.9-alpine3.12 AS pyopenssl-builder
+ARG BASE_IMAGE=python:3.8-alpine3.12
+FROM ${BASE_IMAGE} AS pyopenssl-builder
 
 RUN apk update && apk add --no-cache gcc musl-dev openssl-dev openssl libffi-dev
 
@@ -9,7 +10,7 @@ RUN pip install -r requirements.base.txt
 
 # ---
 
-FROM python:3.9-alpine3.12
+FROM ${BASE_IMAGE}
 
 ARG GIT_BRANCH
 ARG GIT_COMMIT_ID
@@ -30,7 +31,7 @@ LABEL org.opencontainers.image.vendor="SixSq SA"
 LABEL org.opencontainers.image.title="NuvlaBox System Manager"
 LABEL org.opencontainers.image.description="Manages the overall state of the NuvlaBox Engine"
 
-COPY --from=pyopenssl-builder /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
+COPY --from=pyopenssl-builder /usr/local/lib/python3.8/site-packages /usr/local/lib/python3.8/site-packages
 
 RUN apk add --no-cache curl
 
@@ -46,4 +47,4 @@ VOLUME /srv/nuvlabox/shared
 
 ONBUILD RUN ./license.sh
 
-ENTRYPOINT ["./run.py"]
+ENTRYPOINT ["./manager_main.py"]
