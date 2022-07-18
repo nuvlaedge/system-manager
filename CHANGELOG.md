@@ -3,9 +3,6 @@
 ### Added
 ### Changed
  - Use common base image for all NE components
-## Unreleased
-### Added
-### Changed
  - Changed main script name to manager_main.py
  - Changed base docker image to match the rest of the NuvlaEdge services
 ## [2.3.0] - 2022-03-24
