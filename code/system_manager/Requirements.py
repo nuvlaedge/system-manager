@@ -33,7 +33,7 @@ class SystemRequirements(Containers):
 
         self.minimum_requirements = {
             "cpu": 1,
-            "ram": 1024,
+            "ram": 500,
             "disk": 2
         }
 
