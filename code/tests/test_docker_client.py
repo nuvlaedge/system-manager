@@ -40,7 +40,7 @@ class DockerTestCase(unittest.TestCase):
         mock_exists.return_value = False
         self.assertEqual(self.obj.load_data_gateway_network_options(), {"encrypted": "True"},
                          'Failed to set default encryption for Data Gateway network')
-        mock_exists.assert_called_once_with(ContainerRuntime.utils.nuvlabox_shared_net_unencrypted)
+        mock_exists.assert_called_once_with(ContainerRuntime.utils.nuvlaedge_shared_net_unencrypted)
 
         # if no env BUT previous "unencrypt" file, get the FALSE for encryption
         mock_exists.return_value = True
@@ -59,7 +59,7 @@ class DockerTestCase(unittest.TestCase):
         self.assertEqual(self.obj.load_data_gateway_network_options(), {"encrypted": "True"},
                          'Failed to default to encrypted network when provided env is not explicitly False')
         mock_path.assert_not_called()
-        mock_find_network.assert_called_once_with(ContainerRuntime.utils.nuvlabox_shared_net)
+        mock_find_network.assert_called_once_with(ContainerRuntime.utils.nuvlaedge_shared_net)
         self.obj.logging.warning.assert_called_once()
 
         # if network does not exist, same output but no logging
@@ -73,7 +73,7 @@ class DockerTestCase(unittest.TestCase):
         os.environ['DATA_GATEWAY_NETWORK_ENCRYPTION'] = 'FaLsE'
         self.assertEqual(self.obj.load_data_gateway_network_options(), {},
                          'Failed to catch request for unencrypted network from env var')
-        mock_path.assert_called_once_with(ContainerRuntime.utils.nuvlabox_shared_net_unencrypted)
+        mock_path.assert_called_once_with(ContainerRuntime.utils.nuvlaedge_shared_net_unencrypted)
         self.obj.logging = logging_backup
         os.environ.pop('DATA_GATEWAY_NETWORK_ENCRYPTION')
 
@@ -197,10 +197,10 @@ class DockerTestCase(unittest.TestCase):
 
     @mock.patch('socket.gethostname')
     @mock.patch.object(ContainerRuntime.Docker, 'infer_on_stop_docker_image')
-    def test_launch_nuvlabox_on_stop(self, mock_infer_on_stop_docker_image, mock_gethostname):
+    def test_launch_nuvlaedge_on_stop(self, mock_infer_on_stop_docker_image, mock_gethostname):
         # if on-stop image is not given, need to infer, and returns None if cannot be inferred
         mock_infer_on_stop_docker_image.return_value = None
-        self.assertIsNone(self.obj.launch_nuvlabox_on_stop(None),
+        self.assertIsNone(self.obj.launch_nuvlaedge_on_stop(None),
                           'Tried to launch on-stop container even though its image is not known')
         mock_infer_on_stop_docker_image.assert_called_once()
         mock_gethostname.assert_not_called()
@@ -209,14 +209,14 @@ class DockerTestCase(unittest.TestCase):
         mock_gethostname.return_value = 'localhost'
         self.obj.client.containers.get.side_effect = docker.errors.NotFound('', requests.Response())
         self.obj.client.containers.run.return_value = None
-        self.assertIsNone(self.obj.launch_nuvlabox_on_stop('image'),
+        self.assertIsNone(self.obj.launch_nuvlaedge_on_stop('image'),
                           'Failed to launch on-stop without project name')
         self.assertEqual(mock_gethostname.call_count, 2,
                          'Failed to catch container NotFound exception')
         self.obj.client.containers.run.assert_called_once()
 
         self.obj.client.containers.get.reset_mock(side_effect=True)
-        self.assertIsNone(self.obj.launch_nuvlabox_on_stop('image'),
+        self.assertIsNone(self.obj.launch_nuvlaedge_on_stop('image'),
                           'Failed to launch on-stop container')
         self.assertEqual(mock_gethostname.call_count, 3,
                          'Failed to find "self" container')
@@ -271,19 +271,19 @@ class DockerTestCase(unittest.TestCase):
     @mock.patch.object(ContainerRuntime.Docker, 'read_system_issues')
     @mock.patch.object(ContainerRuntime.Docker, 'get_node_info')
     @mock.patch.object(ContainerRuntime.Docker, 'get_node_id')
-    def test_set_nuvlabox_node_label(self, mock_get_node_id, mock_get_node_info, mock_read_system_issues):
+    def test_set_nuvlaedge_node_label(self, mock_get_node_id, mock_get_node_info, mock_read_system_issues):
         # handle Docker errors
         self.obj.client.nodes.get.side_effect = docker.errors.APIError('', requests.Response())
-        out = self.obj.set_nuvlabox_node_label('id')
+        out = self.obj.set_nuvlaedge_node_label('id')
         self.assertFalse(out[0],
                          'Set node label even though Docker ended up in an error')
-        self.assertTrue(out[1].startswith('Unable to set NuvlaBox node label'),
+        self.assertTrue(out[1].startswith('Unable to set NuvlaEdge node label'),
                         'Got the wrong error message while failing to set node label')
 
         self.obj.client.nodes.get.side_effect = docker.errors.APIError(self.obj.lost_quorum_hint, requests.Response())
         mock_get_node_info.return_value = None
         mock_read_system_issues.return_value = ([], [])
-        out = self.obj.set_nuvlabox_node_label('id')
+        out = self.obj.set_nuvlaedge_node_label('id')
         self.assertFalse(out[0],
                          'Set node label even though Swarm quorum was lost')
         self.assertTrue(out[1].startswith('Quorum is lost'),
@@ -295,29 +295,29 @@ class DockerTestCase(unittest.TestCase):
         node = mock.MagicMock()
         node.attrs = {}
         self.obj.client.nodes.get.return_value = node
-        out = self.obj.set_nuvlabox_node_label('id')
+        out = self.obj.set_nuvlaedge_node_label('id')
         self.assertFalse(out[0],
                          'Set node label even though Node is missing its Spec')
-        self.assertTrue(out[1].startswith('Unable to set NuvlaBox node label'),
+        self.assertTrue(out[1].startswith('Unable to set NuvlaEdge node label'),
                         'Got the wrong error message while failing to set node label due to invalid Node')
 
         # otherwise, get its labels. update only if label is missing
         node.attrs = {'Spec': {'Labels': {ContainerRuntime.utils.node_label_key: 'foo'}}}   # already labeled
         self.obj.client.nodes.get.return_value = node
-        self.assertEqual(self.obj.set_nuvlabox_node_label('id'), (True, None),
+        self.assertEqual(self.obj.set_nuvlaedge_node_label('id'), (True, None),
                          'Failed to set node label when label is already set')
         node.update.assert_not_called()
 
         node.attrs = {'Spec': {'Labels': {}}}   # no labels
         self.obj.client.nodes.get.return_value = node
-        self.assertEqual(self.obj.set_nuvlabox_node_label('id'), (True, None),
+        self.assertEqual(self.obj.set_nuvlaedge_node_label('id'), (True, None),
                          'Failed to update node label')
         node.update.assert_called_once_with({'Labels': {ContainerRuntime.utils.node_label_key: 'True'}})
 
         # and if Node id is not provided, infer it
         mock_get_node_id.assert_not_called()
         mock_get_node_id.return_value = 'id2'
-        self.assertEqual(self.obj.set_nuvlabox_node_label(), (True, None),
+        self.assertEqual(self.obj.set_nuvlaedge_node_label(), (True, None),
                          'Failed to update node label when no node ID is provided')
         mock_get_node_id.assert_called_once()
 
@@ -336,10 +336,10 @@ class DockerTestCase(unittest.TestCase):
         self.assertRaises(docker.errors.APIError, self.obj.restart_credentials_manager)
 
     @mock.patch('requests.get')
-    def test_find_nuvlabox_agent_container(self, mock_get):
+    def test_find_nuvlaedge_agent_container(self, mock_get):
         # if API error, get None
         mock_get.side_effect = requests.exceptions.ConnectionError
-        self.assertEqual(self.obj.find_nuvlabox_agent_container(), (None, 'Agent API is not available'),
+        self.assertEqual(self.obj.find_nuvlaedge_agent_container(), (None, 'Agent API is not available'),
                          'Tried to find agent even though its API is down')
 
         response = mock.MagicMock()
@@ -347,11 +347,11 @@ class DockerTestCase(unittest.TestCase):
         mock_get.reset_mock(side_effect=True)
         mock_get.return_value = response
         self.obj.client.containers.get.return_value = 'foo'
-        self.assertEqual(self.obj.find_nuvlabox_agent_container(), ('foo', None),
+        self.assertEqual(self.obj.find_nuvlaedge_agent_container(), ('foo', None),
                          'Failed to find Agent container')
 
         response.raise_for_status.side_effect = TimeoutError
-        self.assertRaises(TimeoutError, self.obj.find_nuvlabox_agent_container)
+        self.assertRaises(TimeoutError, self.obj.find_nuvlaedge_agent_container)
 
     def test_list_all_containers_in_this_node(self):
         # simple lookup

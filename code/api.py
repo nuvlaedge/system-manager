@@ -1,7 +1,7 @@
 #!/usr/local/bin/python
 # -*- coding: utf-8 -*-
 
-"""NuvlaBox System Manager service - api
+"""NuvlaEdge System Manager service - api
 
 Internal dashboard
 
@@ -37,11 +37,11 @@ def main():
 def dashboard():
     """ Dashboard """
 
-    nuvlabox_status = app.config["supervisor"].get_nuvlabox_status()
+    nuvlaedge_status = app.config["supervisor"].get_nuvlaedge_status()
     docker_stats = app.config["supervisor"].reader(utils.container_stats_html_file)
 
     # net_stats is provided in the form of {"iface1": {"rx_bytes": X, "tx_bytes": Y}, "iface2": ...}
-    # Reference: nuvlabox/agent
+    # Reference: nuvlaedge/agent
     #
     # Need to parse it into a chartjs dataset
     net_stats = {
@@ -50,7 +50,7 @@ def dashboard():
 
     rx = []
     tx = []
-    for nstat in nuvlabox_status.get("resources", {}).get("net-stats", []):
+    for nstat in nuvlaedge_status.get("resources", {}).get("net-stats", []):
         iface = nstat.get('interface')
         if not iface:
             continue
@@ -74,26 +74,29 @@ def dashboard():
     }]
 
     try:
-        if not nuvlabox_status:
+        if not nuvlaedge_status:
             return render_template("loading.html")
 
-        return render_template("dashboard.html", cpus_total=nuvlabox_status.get("cpus"),
-                               memory_total="%.2f GB" % float(int(nuvlabox_status.get("memory", 0))/1024),
-                               disk_total="%s GB" % nuvlabox_status.get("disk"),
-                               cpu_usage=nuvlabox_status.get("cpu-usage"),
-                               memory_usage=nuvlabox_status.get("memory-usage"),
-                               disk_usage=nuvlabox_status.get("disk-usage"),
-                               os=nuvlabox_status.get("operating-system"),
-                               arch=nuvlabox_status.get("architecture"), ip=nuvlabox_status.get("ip"),
-                               docker_or_kubelet=app.config["supervisor"].container_runtime.orchestrator.capitalize(),
-                               docker_version=nuvlabox_status.get("docker-server-version",
-                                                                  nuvlabox_status.get("kubelet-version")),
-                               hostname=nuvlabox_status.get("hostname"),
-                               containers_running=len(app.config["supervisor"].container_runtime.list_all_containers_in_this_node()),
-                               docker_images=app.config["supervisor"].container_runtime.count_images_in_this_host(),
-                               swarm_node_id=app.config["supervisor"].container_runtime.get_node_id(),
-                               docker_stats=docker_stats, net_stats=net_stats,
-                               last_boot=nuvlabox_status.get("last-boot unknown"))
+        return render_template("dashboard.html",
+            docker_stats   = docker_stats,
+            net_stats      = net_stats,
+            memory_total   = "%.2f GB" % float(int(nuvlaedge_status.get("memory", 0))/1024),
+            disk_total     = "%s GB" % nuvlaedge_status.get("disk"),
+            cpus_total     = nuvlaedge_status.get("cpus"),
+            cpu_usage      = nuvlaedge_status.get("cpu-usage"),
+            memory_usage   = nuvlaedge_status.get("memory-usage"),
+            disk_usage     = nuvlaedge_status.get("disk-usage"),
+            os             = nuvlaedge_status.get("operating-system"),
+            last_boot      = nuvlaedge_status.get("last-boot unknown"),
+            arch           = nuvlaedge_status.get("architecture"),
+            ip             = nuvlaedge_status.get("ip"),
+            hostname       = nuvlaedge_status.get("hostname"),
+            docker_version = nuvlaedge_status.get("docker-server-version", nuvlaedge_status.get("kubelet-version")),
+            docker_images     = app.config["supervisor"].container_runtime.count_images_in_this_host(),
+            swarm_node_id     = app.config["supervisor"].container_runtime.get_node_id(),
+            docker_or_kubelet = app.config["supervisor"].container_runtime.orchestrator.capitalize(),
+            containers_running = len(app.config["supervisor"].container_runtime.list_all_containers_in_this_node())
+        )
     except:
         log.exception("Server side error")
         os.kill(os.getppid(), signal.SIGKILL)
@@ -124,7 +127,7 @@ def logs():
 def peripherals():
     """ Logs """
 
-    peripherals_list = app.config["supervisor"].get_nuvlabox_peripherals()
+    peripherals_list = app.config["supervisor"].get_nuvlaedge_peripherals()
     for i, per in enumerate(peripherals_list):
         classes = list(map(str.lower, per.get("classes", [])))
 
@@ -158,8 +161,3 @@ def peripherals():
     except:
         log.exception("Server side error")
         os.kill(os.getppid(), signal.SIGKILL)
-
-
-
-
-

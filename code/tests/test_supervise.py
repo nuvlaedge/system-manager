@@ -66,50 +66,50 @@ class SuperviseTestCase(unittest.TestCase):
 
         # and if cluster is a manager, also label it
         self.obj.container_runtime.get_cluster_managers.return_value = ['id']
-        self.obj.container_runtime.set_nuvlabox_node_label.return_value = (None, None)
+        self.obj.container_runtime.set_nuvlaedge_node_label.return_value = (None, None)
         self.assertIsNone(self.obj.classify_this_node(),
                           'Failed to classify manager node')
         self.assertEqual((self.obj.i_am_manager, self.obj.is_cluster_enabled), (True, True),
                          'Node should be a manager in cluster mode')
-        self.obj.container_runtime.set_nuvlabox_node_label.assert_called_once_with('id')
+        self.obj.container_runtime.set_nuvlaedge_node_label.assert_called_once_with('id')
 
         # and is labeling fails, set degraded state
-        self.obj.container_runtime.set_nuvlabox_node_label.return_value = (None, 'label-error')
+        self.obj.container_runtime.set_nuvlaedge_node_label.return_value = (None, 'label-error')
         self.obj.classify_this_node()
         self.assertIn((Supervise.utils.status_degraded, 'label-error'), self.obj.operational_status,
                       'Failed to set degraded state')
 
-    def test_get_nuvlabox_status(self):
+    def test_get_nuvlaedge_status(self):
         # cope with error while opening status file for reading
         with mock.patch('system_manager.Supervise.open') as mock_open:
             # file not found
             mock_open.side_effect = FileNotFoundError
-            self.assertEqual(self.obj.get_nuvlabox_status(), {},
+            self.assertEqual(self.obj.get_nuvlaedge_status(), {},
                              'Failed to set system usages when NB status is not found')
 
         with mock.patch('system_manager.Supervise.open', mock.mock_open(read_data="'bad-content'")):
             # bad json
-            self.assertEqual(self.obj.get_nuvlabox_status(), self.obj.system_usages,
+            self.assertEqual(self.obj.get_nuvlaedge_status(), self.obj.system_usages,
                              'Failed to set system usages when NB status is malformed')
 
         with mock.patch('system_manager.Supervise.open', mock.mock_open(read_data='{"usages": true}')):
             # read well
-            self.assertEqual(self.obj.get_nuvlabox_status(), {"usages": True},
+            self.assertEqual(self.obj.get_nuvlaedge_status(), {"usages": True},
                              'Failed to set system usages from NB status')
 
     @mock.patch('os.path.isdir')
     @mock.patch('glob.iglob')
-    def test_get_nuvlabox_peripherals(self, mock_iglob, mock_isdir):
+    def test_get_nuvlaedge_peripherals(self, mock_iglob, mock_isdir):
         # if peripherals folder doe snot exist get nothing
         mock_iglob.side_effect = FileNotFoundError
-        self.assertEqual(self.obj.get_nuvlabox_peripherals(), [],
+        self.assertEqual(self.obj.get_nuvlaedge_peripherals(), [],
                          'Got NB peripherals even though peripherals folder does not exist')
 
         mock_iglob.reset_mock(side_effect=True)
         mock_iglob.return_value = ['per1', 'per2']
         # if all returned "filed" are dirs, get nothing again
         mock_isdir.return_value = True
-        self.assertEqual(self.obj.get_nuvlabox_peripherals(), [],
+        self.assertEqual(self.obj.get_nuvlaedge_peripherals(), [],
                          'Got NB peripherals even though there are no files, just folders')
         self.assertEqual(mock_isdir.call_count, 2,
                          'Should have checked the 2 returned paths from iglob')
@@ -119,12 +119,12 @@ class SuperviseTestCase(unittest.TestCase):
         # if files do not exist, get nothing
         with mock.patch('system_manager.Supervise.open') as mock_open:
             mock_open.side_effect = [FileNotFoundError, FileNotFoundError]
-            self.assertEqual(self.obj.get_nuvlabox_peripherals(), [],
+            self.assertEqual(self.obj.get_nuvlaedge_peripherals(), [],
                              'Got NB peripherals even though there are no files')
 
         # otherwise, get their content
         with mock.patch('system_manager.Supervise.open', mock.mock_open(read_data='{"foo": "bar"}')):
-            self.assertEqual(self.obj.get_nuvlabox_peripherals(), [{"foo": "bar"}, {"foo": "bar"}],
+            self.assertEqual(self.obj.get_nuvlaedge_peripherals(), [{"foo": "bar"}, {"foo": "bar"}],
                              'Failed to get NB peripherals from local volume')
 
     def test_get_internal_logs_html(self):
@@ -270,18 +270,18 @@ class SuperviseTestCase(unittest.TestCase):
                         'Failed to restart data-gateway container')
         self.obj.container_runtime.client.containers.get.assert_called_once_with('dg')
 
-    def test_find_nuvlabox_agent(self):
+    def test_find_nuvlaedge_agent(self):
         # if cannot find it, get None and append to op status
         l = len(self.obj.operational_status)
-        self.obj.container_runtime.find_nuvlabox_agent_container.return_value = (None, True)
-        self.assertIsNone(self.obj.find_nuvlabox_agent(),
+        self.obj.container_runtime.find_nuvlaedge_agent_container.return_value = (None, True)
+        self.assertIsNone(self.obj.find_nuvlaedge_agent(),
                           'Claming the agent was found when it does not exist')
         self.assertEqual(len(self.obj.operational_status), l+1,
                          'Failed to append operational status due to agent not being found')
 
         # otherwise succeed
-        self.obj.container_runtime.find_nuvlabox_agent_container.return_value = ('container', False)
-        self.assertEqual(self.obj.find_nuvlabox_agent(), 'container',
+        self.obj.container_runtime.find_nuvlaedge_agent_container.return_value = ('container', False)
+        self.assertEqual(self.obj.find_nuvlaedge_agent(), 'container',
                          'Failed to find NB agent container')
 
     def test_check_dg_network(self):
@@ -334,7 +334,7 @@ class SuperviseTestCase(unittest.TestCase):
         mock_setup_docker_network.return_value = None
         self.assertRaises(Supervise.BreakDGManagementCycle,
                           self.obj.manage_docker_data_gateway_network, data_gateway_networks)
-        mock_setup_docker_network.assert_called_once_with(Supervise.utils.nuvlabox_shared_net)
+        mock_setup_docker_network.assert_called_once_with(Supervise.utils.nuvlaedge_shared_net)
 
         mock_setup_docker_network.side_effect = Supervise.ClusterNodeCannotManageDG
         self.assertIsNone(self.obj.manage_docker_data_gateway_network(data_gateway_networks),
@@ -423,7 +423,7 @@ class SuperviseTestCase(unittest.TestCase):
         c2 = fake.MockContainer('agent')
 
         # if the DG net is already part of these containers, do nothing
-        c1.attrs['NetworkSettings']['Networks'][Supervise.utils.nuvlabox_shared_net] = True
+        c1.attrs['NetworkSettings']['Networks'][Supervise.utils.nuvlaedge_shared_net] = True
         containers_to_connect = [c1]
         self.assertIsNone(self.obj.manage_docker_data_gateway_connect_to_network(containers_to_connect, 'id'),
                           'Failed to notice that containers are already connected to DG network')
@@ -433,7 +433,7 @@ class SuperviseTestCase(unittest.TestCase):
         self.assertIsNone(self.obj.manage_docker_data_gateway_connect_to_network(containers_to_connect, 'id'),
                           'Failed to connect containers to DG network')
         self.obj.container_runtime.client.api.connect_container_to_network.assert_called_once_with(c2.id,
-                                                                                                   Supervise.utils.nuvlabox_shared_net)
+                                                                                                   Supervise.utils.nuvlaedge_shared_net)
 
         # if the connection fails, add a status note
         l = len(self.obj.operational_status)
@@ -452,12 +452,12 @@ class SuperviseTestCase(unittest.TestCase):
 
     @mock.patch.object(Supervise.Supervise, 'restart_data_gateway')
     @mock.patch.object(Supervise.Supervise, 'manage_docker_data_gateway_connect_to_network')
-    @mock.patch.object(Supervise.Supervise, 'find_nuvlabox_agent')
+    @mock.patch.object(Supervise.Supervise, 'find_nuvlaedge_agent')
     @mock.patch.object(Supervise.Supervise, 'manage_docker_data_gateway_object')
     @mock.patch.object(Supervise.Supervise, 'manage_docker_data_gateway_network')
     @mock.patch.object(Supervise.Supervise, 'find_docker_network')
     def test_manage_docker_data_gateway(self, mock_find_docker_network, mock_manage_docker_data_gateway_network,
-                                        mock_manage_docker_data_gateway_object, mock_find_nuvlabox_agent,
+                                        mock_manage_docker_data_gateway_object, mock_find_nuvlaedge_agent,
                                         mock_manage_docker_data_gateway_connect_to_network, mock_restart_data_gateway):
         mock_find_docker_network.return_value = None
         # when Break is called, the fn stops
@@ -472,7 +472,7 @@ class SuperviseTestCase(unittest.TestCase):
         mock_manage_docker_data_gateway_object.side_effect = Supervise.BreakDGManagementCycle
         self.assertIsNone(self.obj.manage_docker_data_gateway(),
                           'Failed to interrupt DG mgmt cycle when DG component is being created')
-        mock_find_nuvlabox_agent.assert_not_called()
+        mock_find_nuvlaedge_agent.assert_not_called()
         self.assertIsNone(self.obj.manage_docker_data_gateway(),
                           'Failed to interrupt DG mgmt cycle when net is being created')
 
@@ -482,7 +482,7 @@ class SuperviseTestCase(unittest.TestCase):
         self.obj.container_runtime.client.containers.list.return_value = [fake.MockContainer('data-source')]
 
         # if agent container is not found, add operational status
-        mock_find_nuvlabox_agent.return_value = None
+        mock_find_nuvlaedge_agent.return_value = None
         l = len(self.obj.operational_status)
         self.assertIsNone(self.obj.manage_docker_data_gateway(),
                           'Failed to manage DG when agent container is not found')
@@ -490,7 +490,7 @@ class SuperviseTestCase(unittest.TestCase):
                          'Failure to add operational status when agent cannot be found')
 
         # otherwise manage_docker_data_gateway_connect_to_network
-        mock_find_nuvlabox_agent.return_value = fake.MockContainer('agent')
+        mock_find_nuvlaedge_agent.return_value = fake.MockContainer('agent')
         mock_manage_docker_data_gateway_connect_to_network.side_effect = Supervise.BreakDGManagementCycle
         self.assertIsNone(self.obj.manage_docker_data_gateway(),
                           'Failed to interrupt DG mgmt cycle when container cannot be connected to DB network')
@@ -750,10 +750,10 @@ class SuperviseTestCase(unittest.TestCase):
 
     @mock.patch.object(Supervise.Supervise, 'fix_network_connectivity')
     @mock.patch.object(Supervise.Supervise, 'get_project_name')
-    def test_check_nuvlabox_docker_connectivity(self, mock_get_project_name, mock_fix_network_connectivity):
+    def test_check_nuvlaedge_docker_connectivity(self, mock_get_project_name, mock_fix_network_connectivity):
         # without a project name, get None
         mock_get_project_name.side_effect = Exception
-        self.assertIsNone(self.obj.check_nuvlabox_docker_connectivity(),
+        self.assertIsNone(self.obj.check_nuvlaedge_docker_connectivity(),
                           'Tried to check Docker connectivity without a project name')
         self.obj.container_runtime.client.containers.list.assert_not_called()
 
@@ -763,7 +763,7 @@ class SuperviseTestCase(unittest.TestCase):
         self.obj.container_runtime.client.networks.list.return_value = []
         # without container or networks, return none and add operational status
         l = len(self.obj.operational_status)
-        self.assertIsNone(self.obj.check_nuvlabox_docker_connectivity(),
+        self.assertIsNone(self.obj.check_nuvlaedge_docker_connectivity(),
                           'Tried to check Docker connectivity without any containers or networks')
         self.assertEqual(len(self.obj.operational_status), l+1,
                          'Failed to add operational status when there are no containers or networks to be checked')
@@ -774,7 +774,7 @@ class SuperviseTestCase(unittest.TestCase):
         n = fake.MockNetwork('net')
         self.obj.container_runtime.client.containers.list.return_value = [c]
         self.obj.container_runtime.client.networks.list.return_value = [n]
-        self.assertIsNone(self.obj.check_nuvlabox_docker_connectivity(),
+        self.assertIsNone(self.obj.check_nuvlaedge_docker_connectivity(),
                           'Failed to check NB Docker connectivity')
         mock_fix_network_connectivity.assert_called_once_with([c], n)
 
@@ -813,7 +813,7 @@ class SuperviseTestCase(unittest.TestCase):
 
         container.attrs['HostConfig']['RestartPolicy']['Name'] = 'always'
         # container can be in restarting list, but if it is alive, do nothing
-        self.obj.nuvlabox_containers_restarting[container.name] = container
+        self.obj.nuvlaedge_containers_restarting[container.name] = container
         self.assertIsNone(self.obj.heal_exited_container(container),
                           'Tried to heal an exited container that is not known')
         mock_timer.assert_not_called()
@@ -828,7 +828,7 @@ class SuperviseTestCase(unittest.TestCase):
                          'Should have seen if container is alive, twice')
 
         # if container is not restarting, restart it
-        self.obj.nuvlabox_containers_restarting.pop(container.name)
+        self.obj.nuvlaedge_containers_restarting.pop(container.name)
         self.assertIsNone(self.obj.heal_exited_container(container),
                           'Failed to heal an exited container that is not restarting')
         self.assertEqual(mock_timer.call_count, 2,
@@ -838,28 +838,28 @@ class SuperviseTestCase(unittest.TestCase):
     @mock.patch.object(Supervise.Supervise, 'heal_created_container')
     def test_docker_container_healer(self, mock_heal_created_container, mock_heal_exited_container):
         # without NB containers, do nothing
-        self.obj.nuvlabox_containers = []
+        self.obj.nuvlaedge_containers = []
         self.assertIsNone(self.obj.docker_container_healer(),
                           'Tried to heal containers when there are none')
 
         # if there are obsolete containers, remove them from the obsolete list
         obsolete_container = fake.MockContainer()
         # if ["paused", "running", "restarting"], do nothing
-        self.obj.nuvlabox_containers = [fake.MockContainer('1', status='paused'),
+        self.obj.nuvlaedge_containers = [fake.MockContainer('1', status='paused'),
                                         fake.MockContainer('2', status='running'),
                                         fake.MockContainer('3', status='restarting')]
-        self.obj.nuvlabox_containers_restarting = {**{c.name: {} for c in self.obj.nuvlabox_containers},
-                                                   **{obsolete_container.name: {}}}
+        self.obj.nuvlaedge_containers_restarting = {**{c.name: {} for c in self.obj.nuvlaedge_containers},
+                                                    **{obsolete_container.name: {}}}
         self.assertIsNone(self.obj.docker_container_healer(),
                           'Tried to heal containers that are in a good state, which are not to be healed')
-        self.assertEqual(len(self.obj.nuvlabox_containers_restarting), 3,
+        self.assertEqual(len(self.obj.nuvlaedge_containers_restarting), 3,
                          'Failed to pop obsolete containers from memory')
         mock_heal_created_container.assert_not_called()
         mock_heal_exited_container.assert_not_called()
 
         # created containers are started
         created_container = fake.MockContainer(status='created')
-        self.obj.nuvlabox_containers.append(created_container)
+        self.obj.nuvlaedge_containers.append(created_container)
         self.assertIsNone(self.obj.docker_container_healer(),
                           'Failed to heal created containers')
         mock_heal_created_container.assert_called_once_with(created_container)
@@ -867,7 +867,7 @@ class SuperviseTestCase(unittest.TestCase):
 
         # exited containers are restarted
         exited_container = fake.MockContainer(status='exited')
-        self.obj.nuvlabox_containers.append(exited_container)
+        self.obj.nuvlaedge_containers.append(exited_container)
         self.assertIsNone(self.obj.docker_container_healer(),
                           'Failed to heal exited containers')
         mock_heal_exited_container.assert_called_once_with(exited_container)
@@ -892,7 +892,7 @@ class SuperviseTestCase(unittest.TestCase):
         self.assertIsNone(self.obj.restart_container('name', 'id'),
                           'Failed to disconnect container from network when restart fails')
         self.obj.container_runtime.client.api.disconnect_container_from_network.assert_called_once_with('id',
-                                                                                                        Supervise.utils.nuvlabox_shared_net)
+                                                                                                        Supervise.utils.nuvlaedge_shared_net)
 
         # if disconnect fails, add a second operations status
         l = len(self.obj.operational_status)

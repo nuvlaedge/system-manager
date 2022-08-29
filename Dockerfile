@@ -28,22 +28,22 @@ LABEL org.opencontainers.image.authors="support@sixsq.com"
 LABEL org.opencontainers.image.created=${GIT_BUILD_TIME}
 LABEL org.opencontainers.image.url=${PROJECT_URL}
 LABEL org.opencontainers.image.vendor="SixSq SA"
-LABEL org.opencontainers.image.title="NuvlaBox System Manager"
-LABEL org.opencontainers.image.description="Manages the overall state of the NuvlaBox Engine"
+LABEL org.opencontainers.image.title="NuvlaEdge System Manager"
+LABEL org.opencontainers.image.description="Manages the overall state of the NuvlaEdge Engine"
 
 COPY --from=pyopenssl-builder /usr/local/lib/python3.8/site-packages /usr/local/lib/python3.8/site-packages
 
 RUN apk add --no-cache curl
 
-COPY code/requirements.txt /opt/nuvlabox/
+COPY code/requirements.txt /opt/nuvlaedge/
 
-WORKDIR /opt/nuvlabox/
+WORKDIR /opt/nuvlaedge/
 
 RUN pip install -r requirements.txt
 
-COPY code/ LICENSE /opt/nuvlabox/
+COPY code/ LICENSE /opt/nuvlaedge/
 
-VOLUME /srv/nuvlabox/shared
+VOLUME /srv/nuvlaedge/shared
 
 ONBUILD RUN ./license.sh
 

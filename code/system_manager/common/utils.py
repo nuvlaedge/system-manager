@@ -7,20 +7,20 @@
 import os
 from system_manager.common.logging import logging
 
-data_volume = "/srv/nuvlabox/shared"
+data_volume = "/srv/nuvlaedge/shared"
 log_filename = "system-manager.log"
-nuvlabox_status_file = "{}/.nuvlabox-status".format(data_volume)
+nuvlaedge_status_file = "{}/.nuvlabox-status".format(data_volume)
 cert_file = f"{data_volume}/cert.pem"
 key_file = f"{data_volume}/key.pem"
-nuvlabox_peripherals_folder = "{}/.peripherals".format(data_volume)
+nuvlaedge_peripherals_folder = "{}/.peripherals".format(data_volume)
 operational_status_file = f'{data_volume}/.status'
 operational_status_notes_file = f'{data_volume}/.status_notes'
-base_label = "nuvlabox.component=True"
-node_label_key = "nuvlabox"
+base_label = "nuvlaedge.component=True"
+node_label_key = "nuvlaedge"
 
-nuvlabox_shared_net = 'nuvlabox-shared-network'
-nuvlabox_shared_net_unencrypted = f'{data_volume}/.nuvlabox-shared-net-unencrypted'
-overlay_network_service = 'nuvlabox-ack'
+nuvlaedge_shared_net = 'nuvlabox-shared-network'
+nuvlaedge_shared_net_unencrypted = f'{data_volume}/.nuvlabox-shared-net-unencrypted'
+overlay_network_service = 'nuvlaedge-ack'
 
 container_stats_html_file = "docker_stats.html"
 container_stats_json_file = f"{data_volume}/docker_stats.json"

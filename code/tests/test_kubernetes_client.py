@@ -34,7 +34,7 @@ class KubernetesTestCase(unittest.TestCase):
 
     def test_init(self):
         # the base class should also have been set
-        self.assertEqual(self.obj.namespace, "nuvlabox",
+        self.assertEqual(self.obj.namespace, "nuvlaedge",
                          'Kubernetes client was not properly initialized')
 
     def test_list_internal_components(self):
@@ -44,7 +44,7 @@ class KubernetesTestCase(unittest.TestCase):
         # this is a simple lookup
         self.assertEqual(self.obj.list_internal_components('label'), 'foo',
                          'Failed to list internal pods')
-        self.obj.client.list_namespaced_pod.assert_called_once_with(namespace='nuvlabox', label_selector='label')
+        self.obj.client.list_namespaced_pod.assert_called_once_with(namespace='nuvlaedge', label_selector='label')
 
     def test_fetch_container_logs(self):
         self.obj.client.read_namespaced_pod_log.return_value = 'foo\nbar'
@@ -115,9 +115,9 @@ class KubernetesTestCase(unittest.TestCase):
         self.assertIsNone(self.obj.infer_on_stop_docker_image(),
                           'Tried to infer on-stop details for k8s, where it is not applicable')
 
-    def test_launch_nuvlabox_on_stop(self):
+    def test_launch_nuvlaedge_on_stop(self):
         # n/a for k8s
-        self.assertIsNone(self.obj.launch_nuvlabox_on_stop('none'),
+        self.assertIsNone(self.obj.launch_nuvlaedge_on_stop('none'),
                           'Tried to infer on-stop details for k8s, where it is not applicable')
 
     @mock.patch('system_manager.common.ContainerRuntime.Kubernetes.get_node_info')
@@ -165,9 +165,9 @@ class KubernetesTestCase(unittest.TestCase):
         self.assertEqual(self.obj.read_system_issues(None), ([], []),
                          'Failed to read system errors and warnings for k8s')
 
-    def test_set_nuvlabox_node_label(self):
+    def test_set_nuvlaedge_node_label(self):
         # n/a for k8s
-        self.assertEqual(self.obj.set_nuvlabox_node_label(), (True, None),
+        self.assertEqual(self.obj.set_nuvlaedge_node_label(), (True, None),
                          'Unexpected output for method which is not applicable to k8s')
 
     def test_restart_credentials_manager(self):
@@ -175,30 +175,30 @@ class KubernetesTestCase(unittest.TestCase):
         self.assertIsNone(self.obj.restart_credentials_manager(),
                           'Should just wait for pod to restart itself')
 
-    def test_find_nuvlabox_agent_container(self):
+    def test_find_nuvlaedge_agent_container(self):
         pods = mock.MagicMock()
         # if cannot find pod, get None
         pods.items = []
         self.obj.client.list_namespaced_pod.return_value = pods
-        self.assertEqual(self.obj.find_nuvlabox_agent_container()[0], None,
+        self.assertEqual(self.obj.find_nuvlaedge_agent_container()[0], None,
                          'Found agent pod when it should not exist')
-        self.assertTrue(self.obj.find_nuvlabox_agent_container()[1].startswith('There are no pods'),
+        self.assertTrue(self.obj.find_nuvlaedge_agent_container()[1].startswith('There are no pods'),
                         'Got the wrong error message when no pods are found')
 
         # if it exists, but the name is not "agent", get None
         pods.items = [fake.mock_kubernetes_pod('pod-wrong-name')]
         self.obj.client.list_namespaced_pod.return_value = pods
-        self.assertEqual(self.obj.find_nuvlabox_agent_container()[0], None,
+        self.assertEqual(self.obj.find_nuvlaedge_agent_container()[0], None,
                          'Found agent pod when pod name does not match')
-        self.assertTrue(self.obj.find_nuvlabox_agent_container()[1].startswith('Cannot find agent container within'),
+        self.assertTrue(self.obj.find_nuvlaedge_agent_container()[1].startswith('Cannot find agent container within'),
                         'Got the wrong error message when there is a pod name mismatch')
 
         # otherwise, get the container back
         pods.items = [fake.mock_kubernetes_pod('agent')]
         self.obj.client.list_namespaced_pod.return_value = pods
-        self.assertEqual(self.obj.find_nuvlabox_agent_container()[0].name, 'agent',
+        self.assertEqual(self.obj.find_nuvlaedge_agent_container()[0].name, 'agent',
                          'Failed to find agent container')
-        self.assertIsNone(self.obj.find_nuvlabox_agent_container()[1],
+        self.assertIsNone(self.obj.find_nuvlaedge_agent_container()[1],
                           'Got an error message on success')
 
     def test_list_all_containers_in_this_node(self):

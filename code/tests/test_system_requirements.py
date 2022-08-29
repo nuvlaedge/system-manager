@@ -20,7 +20,7 @@ class SystemRequirementsTestCase(unittest.TestCase):
     def test_init(self):
         self.assertEqual(self.obj.minimum_requirements, {
             "cpu": 1,
-            "ram": 1024,
+            "ram": 500,
             "disk": 2
         },
                          'Failed to initialize System Requirements class')
@@ -85,4 +85,3 @@ class SystemRequirementsTestCase(unittest.TestCase):
         mock_check_disk.return_value = True
         self.assertTrue(self.obj.check_all_hw_requirements(),
                         'Failed to check valid system requirements')
-

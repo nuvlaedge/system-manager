@@ -1,7 +1,7 @@
 #!/usr/local/bin/python3.7
 # -*- coding: utf-8 -*-
 
-""" Contains the supervising class for all NuvlaBox Engine components """
+""" Contains the supervising class for all NuvlaEdge Engine components """
 
 import docker
 import json
@@ -36,7 +36,7 @@ def cluster_workers_cannot_manage(func):
 
 class Supervise(Containers):
     """ The Supervise class contains all the methods and
-    definitions for making sure the NuvlaBox Engine is running smoothly,
+    definitions for making sure the NuvlaEdge Engine is running smoothly,
     including all methods for dealing with system disruptions and
     graceful shutdowns
     """
@@ -50,15 +50,19 @@ class Supervise(Containers):
 
         self.system_usages = {}
         self.on_stop_docker_image = self.container_runtime.infer_on_stop_docker_image()
-        self.data_gateway_image = os.getenv('NUVLABOX_DATA_GATEWAY_IMAGE', 'eclipse-mosquitto:1.6.12')
+        self.data_gateway_image = os.getenv('NUVLAEDGE_DATA_GATEWAY_IMAGE',
+                                            os.getenv('NUVLABOX_DATA_GATEWAY_IMAGE',
+                                                      'eclipse-mosquitto:1.6.12'))
         self.data_gateway_object = None
-        self.data_gateway_name = os.getenv('NUVLABOX_DATA_GATEWAY_NAME', 'data-gateway')
+        self.data_gateway_name = os.getenv('NUVLAEDGE_DATA_GATEWAY_NAME',
+                                           os.getenv('NUVLABOX_DATA_GATEWAY_NAME',
+                                                     'data-gateway'))
         self.i_am_manager = self.is_cluster_enabled = self.node = None
         self.operational_status = []
         self.agent_dg_failed_connection = 0
         self.lost_quorum_hint = 'possible that too few managers are online'
-        self.nuvlabox_containers = []
-        self.nuvlabox_containers_restarting = {}
+        self.nuvlaedge_containers = []
+        self.nuvlaedge_containers_restarting = {}
 
     @staticmethod
     def printer(content, file):
@@ -93,21 +97,21 @@ class Supervise(Containers):
         self.i_am_manager = True if node_id in managers else False
 
         if self.i_am_manager:
-            _update_label_success, err = self.container_runtime.set_nuvlabox_node_label(node_id)
+            _update_label_success, err = self.container_runtime.set_nuvlaedge_node_label(node_id)
             if err:
                 self.operational_status.append((utils.status_degraded, err))
 
-    def get_nuvlabox_status(self):
-        """ Re-uses the consumption metrics from NuvlaBox Agent """
+    def get_nuvlaedge_status(self):
+        """ Re-uses the consumption metrics from NuvlaEdge Agent """
 
         try:
-            with open(utils.nuvlabox_status_file) as nbsf:
+            with open(utils.nuvlaedge_status_file) as nbsf:
                 usages = json.loads(nbsf.read())
         except FileNotFoundError:
-            self.log.warning("NuvlaBox status metrics file not found locally...wait for Agent to create it")
+            self.log.warning("NuvlaEdge status metrics file not found locally...wait for Agent to create it")
             usages = {}
         except:
-            self.log.exception("Unknown issues while retrieving NuvlaBox status metrics")
+            self.log.exception("Unknown issues while retrieving NuvlaEdge status metrics")
             usages = self.system_usages
 
         # update in-mem copy of usages
@@ -115,16 +119,16 @@ class Supervise(Containers):
 
         return usages
 
-    def get_nuvlabox_peripherals(self):
-        """ Reads the list of peripherals discovered by the other NuvlaBox microservices,
+    def get_nuvlaedge_peripherals(self):
+        """ Reads the list of peripherals discovered by the other NuvlaEdge microservices,
         via the shared volume folder
 
-        :returns list of peripherals [{...}, {...}] with the original data schema (see Nuvla nuvlabox-peripherals)
+        :returns list of peripherals [{...}, {...}] with the original data schema (see Nuvla nuvlaedge-peripherals)
         """
 
         peripherals = []
         try:
-            peripheral_files = glob.iglob(utils.nuvlabox_peripherals_folder + '**/**', recursive=True)
+            peripheral_files = glob.iglob(utils.nuvlaedge_peripherals_folder + '**/**', recursive=True)
         except FileNotFoundError:
             return peripherals
 
@@ -143,7 +147,7 @@ class Supervise(Containers):
         return peripherals
 
     def get_internal_logs_html(self, tail=30, since=None):
-        """ Get the logs for all NuvlaBox containers
+        """ Get the logs for all NuvlaEdge containers
 
         :returns list of log generators
         :returns timestamp for when the logs were fetched
@@ -278,9 +282,9 @@ class Supervise(Containers):
         # At this stage, the DG network is setup
         # let's create the DG component
         labels = {
-            "nuvlabox.component": "True",
-            "nuvlabox.deployment": "production",
-            "nuvlabox.data-gateway": "True"
+            "nuvlaedge.component": "True",
+            "nuvlaedge.deployment": "production",
+            "nuvlaedge.data-gateway": "True"
         }
         try:
             cmd = "sh -c 'sleep 10 && /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf'"
@@ -291,7 +295,7 @@ class Supervise(Containers):
                                                               labels=labels,
                                                               init=True,
                                                               container_labels=labels,
-                                                              networks=[utils.nuvlabox_shared_net],
+                                                              networks=[utils.nuvlaedge_shared_net],
                                                               constraints=[
                                                                   'node.role==manager',
                                                                   f'node.labels.{utils.node_label_key}==True'
@@ -308,7 +312,7 @@ class Supervise(Containers):
                                                              labels=labels,
                                                              restart_policy={"Name": "always"},
                                                              oom_score_adj=-900,
-                                                             network=utils.nuvlabox_shared_net,
+                                                             network=utils.nuvlaedge_shared_net,
                                                              command=cmd
                                                              )
         except docker.errors.APIError as e:
@@ -329,14 +333,14 @@ class Supervise(Containers):
                 self.log.error(f'Unable to launch Data Gateway router {name}: {str(e)}')
                 return False
 
-    def find_nuvlabox_agent(self) -> object or None:
+    def find_nuvlaedge_agent(self) -> object or None:
         """
         Connect the NB agent to the DG network
 
         :return: agent container object or None
         """
 
-        container, err = self.container_runtime.find_nuvlabox_agent_container()
+        container, err = self.container_runtime.find_nuvlaedge_agent_container()
 
         if err:
             self.operational_status.append((utils.status_degraded, err))
@@ -381,7 +385,7 @@ class Supervise(Containers):
         if not data_gateway_networks:
             # network doesn't exist, so let's create it as well
             try:
-                self.setup_docker_network(utils.nuvlabox_shared_net)
+                self.setup_docker_network(utils.nuvlaedge_shared_net)
                 raise BreakDGManagementCycle
             except ClusterNodeCannotManageDG:
                 # this node can't setup networks
@@ -462,17 +466,17 @@ class Supervise(Containers):
         :return:
         """
         for ccont in containers_to_connect:
-            if utils.nuvlabox_shared_net not in \
+            if utils.nuvlaedge_shared_net not in \
                     ccont.attrs.get('NetworkSettings', {}).get('Networks', {}).keys():
                 self.log.info(f'Connecting ({ccont.name}) '
-                              f'to network {utils.nuvlabox_shared_net}')
+                              f'to network {utils.nuvlaedge_shared_net}')
                 try:
-                    self.container_runtime.client.api.connect_container_to_network(ccont.id, utils.nuvlabox_shared_net)
+                    self.container_runtime.client.api.connect_container_to_network(ccont.id, utils.nuvlaedge_shared_net)
                 except Exception as e:
                     # doe Network exist? If so, and agent was not connected, need to break and retry
                     if "notfound" not in str(e).replace(' ', '').lower():
                         if ccont.id == agent_container_id:
-                            self.log.error(f'Error while connecting NuvlaBox Agent to Data Gateway network: {str(e)}')
+                            self.log.error(f'Error while connecting NuvlaEdge Agent to Data Gateway network: {str(e)}')
                             self.operational_status.append((utils.status_degraded,
                                                             f'Data Gateway connection error: {str(e)}'))
                             raise BreakDGManagementCycle
@@ -494,7 +498,7 @@ class Supervise(Containers):
         """
 
         # ## 1: if the DG network already exists, then chances are that the DG has already been deployed
-        dg_networks = self.find_docker_network([utils.nuvlabox_shared_net])
+        dg_networks = self.find_docker_network([utils.nuvlaedge_shared_net])
         try:
             dg_network = self.manage_docker_data_gateway_network(dg_networks)
         except BreakDGManagementCycle:
@@ -507,15 +511,15 @@ class Supervise(Containers):
             return
 
         # ## 3: finally, connect this node's Agent container (+data source containers) to DG
-        agent_container = self.find_nuvlabox_agent()
+        agent_container = self.find_nuvlaedge_agent()
         data_source_containers = self.container_runtime.client.containers.list(filters={
-            'label': 'nuvlabox.data-source-container'
+            'label': 'nuvlaedge.data-source-container'
         })
 
         if agent_container:
             agent_container_id = agent_container.id
         else:
-            self.operational_status.append((utils.status_degraded, 'NuvlaBox Agent is down'))
+            self.operational_status.append((utils.status_degraded, 'NuvlaEdge Agent is down'))
             return
 
         connecting_containers = [agent_container] + data_source_containers
@@ -612,8 +616,8 @@ class Supervise(Containers):
         """
 
         labels = {
-            "nuvlabox.network": "True",
-            "nuvlabox.data-gateway": "True"
+            "nuvlaedge.network": "True",
+            "nuvlaedge.data-gateway": "True"
         }
         self.log.info(f'Creating Data Gateway network {net_name}')
         try:
@@ -637,7 +641,7 @@ class Supervise(Containers):
                     # in this case there's nothing else to do
                     return True
             else:
-                self.log.error(f'Unable to create NuvlaBox network {net_name}: {str(e)}')
+                self.log.error(f'Unable to create NuvlaEdge network {net_name}: {str(e)}')
                 return False
 
         # if we got here, then we are handling an overlay network, and thus we need the propagation service
@@ -661,10 +665,10 @@ class Supervise(Containers):
 
         # otherwise, let's create the global service
         labels = {
-            "nuvlabox.component": "True",
-            "nuvlabox.deployment": "production",
-            "nuvlabox.overlay-network-service": "True",
-            "nuvlabox.data-gateway": "True"
+            "nuvlaedge.component": "True",
+            "nuvlaedge.deployment": "production",
+            "nuvlaedge.overlay-network-service": "True",
+            "nuvlaedge.data-gateway": "True"
         }
         restart_policy = {
             "condition": "on-failure"
@@ -744,9 +748,9 @@ class Supervise(Containers):
                     self.log.error(f'Unable to reconnect {container.name} to '
                                    f'network {target_network.name}: {str(e)}')
                     self.operational_status.append((utils.status_degraded,
-                                                    'NuvlaBox containers lost their network connection'))
+                                                    'NuvlaEdge containers lost their network connection'))
 
-    def check_nuvlabox_docker_connectivity(self):
+    def check_nuvlaedge_docker_connectivity(self):
         """
         Makes sure all NBE containers are connected to the original bridge network (at least)
 
@@ -768,14 +772,14 @@ class Supervise(Containers):
             'label': original_project_label
         }
         original_nb_containers = self.container_runtime.client.containers.list(filters=filters)
-        self.nuvlabox_containers = self.container_runtime.client.containers.list(filters=filters, all=True)
+        self.nuvlaedge_containers = self.container_runtime.client.containers.list(filters=filters, all=True)
 
         filters.update({'driver': 'bridge'})
         original_nb_internal_network = self.container_runtime.client.networks.list(filters=filters)
 
         if not original_nb_containers or not original_nb_internal_network:
-            self.operational_status.append((utils.status_degraded, 'Original NuvlaBox network not found'))
-            self.log.warning('Unable to check nuvlabox connectivity: original containers/network not found')
+            self.operational_status.append((utils.status_degraded, 'Original NuvlaEdge network not found'))
+            self.log.warning('Unable to check NuvlaEdge connectivity: original containers/network not found')
             return
 
         # there should only be 1 original nb internal network, so take the 1st one
@@ -814,14 +818,14 @@ class Supervise(Containers):
                 return
 
             # at this stage we simply need to try to restart it
-            if (container.name in self.nuvlabox_containers_restarting and
-                not self.nuvlabox_containers_restarting[container.name].is_alive()) or \
-                    container.name not in self.nuvlabox_containers_restarting:
+            if (container.name in self.nuvlaedge_containers_restarting and
+                not self.nuvlaedge_containers_restarting[container.name].is_alive()) or \
+                    container.name not in self.nuvlaedge_containers_restarting:
                 self.log.warning(f'Container {container.name} down (code {exit_code}). Scheduling restart')
-                self.nuvlabox_containers_restarting[container.name] = Timer(30,
-                                                                            self.restart_container,
-                                                                            (container.name, container.id))
-                self.nuvlabox_containers_restarting[container.name].start()
+                self.nuvlaedge_containers_restarting[container.name] = Timer(30,
+                                                                             self.restart_container,
+                                                                             (container.name, container.id))
+                self.nuvlaedge_containers_restarting[container.name].start()
 
         return
 
@@ -832,17 +836,17 @@ class Supervise(Containers):
         :return:
         """
 
-        if not self.nuvlabox_containers:
+        if not self.nuvlaedge_containers:
             return
 
-        obsolete_containers = set(self.nuvlabox_containers_restarting) - set([c.name for c in self.nuvlabox_containers])
+        obsolete_containers = set(self.nuvlaedge_containers_restarting) - set([c.name for c in self.nuvlaedge_containers])
         if obsolete_containers:
             # this means we had old restarts for old containers, so let's just clean them up to avoid
             # unnecessary memory pile up
             for cname in obsolete_containers:
-                self.nuvlabox_containers_restarting.pop(cname)
+                self.nuvlaedge_containers_restarting.pop(cname)
 
-        for container in self.nuvlabox_containers:
+        for container in self.nuvlaedge_containers:
             status = container.status.lower()
             if status in ["paused", "running", "restarting"]:
                 continue
@@ -875,9 +879,8 @@ class Supervise(Containers):
                 self.log.warning(f'Trying to reset network config for {name}')
                 try:
                     self.container_runtime.client.api.disconnect_container_from_network(container_id,
-                                                                                        utils.nuvlabox_shared_net)
+                                                                                        utils.nuvlaedge_shared_net)
                 except docker.errors.APIError as e2:
                     err_msg = f'Malfunctioning network for {name}: {str(e2)}'
                     self.log.error(f'Cannot recover {name}. {err_msg}')
                     self.operational_status.append((utils.status_degraded, err_msg))
-

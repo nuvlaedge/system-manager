@@ -1,27 +1,27 @@
 # system-manager
 
-[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg?style=for-the-badge)](https://github.com/nuvlabox/system-manager/graphs/commit-activity)
-[![GitHub issues](https://img.shields.io/github/issues/nuvlabox/system-manager?style=for-the-badge&logo=github&logoColor=white)](https://GitHub.com/nuvlabox/system-manager/issues/)
-[![Docker pulls](https://img.shields.io/docker/pulls/nuvlabox/system-manager?style=for-the-badge&logo=Docker&logoColor=white)](https://cloud.docker.com/u/nuvlabox/repository/docker/nuvlabox/system-manager)
-[![Docker image size](https://img.shields.io/docker/image-size/nuvladev/system-manager/master?logo=docker&logoColor=white&style=for-the-badge)](https://cloud.docker.com/u/nuvlabox/repository/docker/nuvlabox/system-manager)
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg?style=for-the-badge)](https://github.com/nuvlaedge/system-manager/graphs/commit-activity)
+[![GitHub issues](https://img.shields.io/github/issues/nuvlaedge/system-manager?style=for-the-badge&logo=github&logoColor=white)](https://GitHub.com/nuvlaedge/system-manager/issues/)
+[![Docker pulls](https://img.shields.io/docker/pulls/nuvlaedge/system-manager?style=for-the-badge&logo=Docker&logoColor=white)](https://cloud.docker.com/u/nuvlaedge/repository/docker/nuvlaedge/system-manager)
+[![Docker image size](https://img.shields.io/docker/image-size/nuvladev/system-manager/master?logo=docker&logoColor=white&style=for-the-badge)](https://cloud.docker.com/u/nuvlaedge/repository/docker/nuvlaedge/system-manager)
 
-![CI Build](https://github.com/nuvlabox/system-manager/actions/workflows/main.yml/badge.svg)
-![CI Release](https://github.com/nuvlabox/system-manager/actions/workflows/release.yml/badge.svg)
+![CI Build](https://github.com/nuvlaedge/system-manager/actions/workflows/main.yml/badge.svg)
+![CI Release](https://github.com/nuvlaedge/system-manager/actions/workflows/release.yml/badge.svg)
 
 
-**This repository contains the source code for the NuvlaBox System Manager - this microservice supervisions all the other microservices and environment that compose the [NuvlaBox](https://sixsq.com/products-and-services/nuvlabox/overview)**
+**This repository contains the source code for the NuvlaEdge System Manager - this microservice supervisions all the other microservices and environment that compose the [NuvlaEdge](https://sixsq.com/products-and-services/nuvlaedge/overview)**
 
-This microservice is an integral component of the NuvlaBox Engine.
-
----
-
-**NOTE:** this microservice is part of a loosely coupled architecture, thus when deployed by itself, it might not provide all of its functionalities. Please refer to https://github.com/nuvlabox/deployment for a fully functional deployment
+This microservice is an integral component of the NuvlaEdge Engine.
 
 ---
 
-## Build the NuvlaBox System Manager
+**NOTE:** this microservice is part of a loosely coupled architecture, thus when deployed by itself, it might not provide all of its functionalities. Please refer to https://github.com/nuvlaedge/deployment for a fully functional deployment
 
-This repository is already linked with Travis CI, so with every commit, a new Docker image is released. 
+---
+
+## Build the NuvlaEdge System Manager
+
+This repository is already linked with Travis CI, so with every commit, a new Docker image is released.
 
 There is a [POM file](pom.xml) which is responsible for handling the multi-architecture and stage-specific builds.
 
@@ -29,19 +29,19 @@ There is a [POM file](pom.xml) which is responsible for handling the multi-archi
 
 **If you're developing in a non-master branch**, please push your changes to the respective branch, and wait for Travis CI to finish the automated build. You'll find your Docker image in the [nuvladev](https://hub.docker.com/u/nuvladev) organization in Docker hub, names as _nuvladev/system-manager:\<branch\>_.
 
-## Deploy the NuvlaBox System Manager
+## Deploy the NuvlaEdge System Manager
 
-### Prerequisites 
+### Prerequisites
 
  - *Docker (version 18 or higher)*
  - *Docker Compose (version 1.23.2 or higher)*
 
-### Launching the NuvlaBox System Manager
+### Launching the NuvlaEdge System Manager
 
 Simply run `docker-compose up --build`
 
 
-## Test the NuvlaBox System Manager
+## Test the NuvlaEdge System Manager
 
 This microservice comes with a Docker healtcheck, so your first check should be done by running `docker ps` and ensuring that the container status is "_healthy_". If that's not the case, then please check the Docker logs of this container because maybe your system has failed to meet the minimum requirements.
 
@@ -52,7 +52,7 @@ Once your container is healthy, you can also navigate to [localhost:3636](http:/
 ## Contributing
 
 This is an open-source project, so all community contributions are more than welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md)
- 
+
 ## Copyright
 
 Copyright &copy; 2021, SixSq SA

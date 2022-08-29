@@ -111,7 +111,7 @@ class MockContainer(object):
         self.labels = {
             'com.docker.compose.project.working_dir': '/workdir',
             'com.docker.compose.project.config_files': 'a.yml,b.yml',
-            'com.docker.compose.project': 'nuvlabox'
+            'com.docker.compose.project': 'nuvlaedge'
         }
         self.attrs = {
             'Config': {

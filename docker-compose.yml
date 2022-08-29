@@ -5,10 +5,12 @@ services:
     build: .
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./code/templates:/opt/nuvlabox/templates
-      - ./code/static:/opt/nuvlabox/static
-      - ./code/test/.nuvlabox-status:/srv/nuvlabox/shared/.nuvlabox-status
+      - ./code/templates:/opt/nuvlaedge/templates
+      - ./code/static:/opt/nuvlaedge/static
+      - ./code/test/.nuvlabox-status:/srv/nuvlaedge/shared/.nuvlabox-status
     labels:
+      - nuvlaedge.component=True
+      - nuvlaedge.deployment=production
       - nuvlabox.component=True
       - nuvlabox.deployment=production
     environment:
@@ -23,5 +25,3 @@ services:
       start_period: 10s
     ports:
       - 127.0.0.1:3636:3636
-
-

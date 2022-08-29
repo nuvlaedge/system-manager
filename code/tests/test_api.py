@@ -34,7 +34,7 @@ class APITestCase(unittest.TestCase):
 
     @mock.patch('os.kill')
     def test_dashboard(self, mock_kill):
-        self.obj.app.config["supervisor"].get_nuvlabox_status.return_value = {}
+        self.obj.app.config["supervisor"].get_nuvlaedge_status.return_value = {}
         self.obj.app.config["supervisor"].reader.return_value = []
         # if no stats, get loading page
         self.assertTrue(self.obj.dashboard(),
@@ -44,7 +44,7 @@ class APITestCase(unittest.TestCase):
 
         # otherwise, get the dashboard
         self.obj.render_template.reset_mock()
-        self.obj.app.config["supervisor"].get_nuvlabox_status.return_value = {'resources': {}}
+        self.obj.app.config["supervisor"].get_nuvlaedge_status.return_value = {'resources': {}}
         self.assertTrue(self.obj.dashboard(),
                         'Failed to get dashboard page')
         self.obj.app.config["supervisor"].container_runtime.list_all_containers_in_this_node.assert_called_once()
@@ -78,7 +78,7 @@ class APITestCase(unittest.TestCase):
 
     @mock.patch('os.kill')
     def test_peripherals(self, mock_kill):
-        self.obj.app.config["supervisor"].get_nuvlabox_peripherals.return_value = [
+        self.obj.app.config["supervisor"].get_nuvlaedge_peripherals.return_value = [
             {'classes': ['phone']},
             {'classes': ['n/a']},
             {'classes': ['gpu', 'video', 'n/a']},

@@ -1,6 +1,6 @@
-# NuvlaBox System Manager Unit Tests
+# NuvlaEdge System Manager Unit Tests
 
-This folder contains all the unit tests available for the NuvlaBox System Manager. For each module, there is a respective 
+This folder contains all the unit tests available for the NuvlaEdge System Manager. For each module, there is a respective
 test file, where each module class and/or function is tested.
 
 ## Run the tests

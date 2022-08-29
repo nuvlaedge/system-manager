@@ -30,7 +30,7 @@ class ContainerRuntime(ABC):
 
     @abstractmethod
     def list_internal_components(self, base_label=utils.base_label):
-        """ Gets all the containers that compose the NuvlaBox Engine
+        """ Gets all the containers that compose the NuvlaEdge Engine
         :param base_label: label to be used in the filter
         """
         pass
@@ -87,7 +87,7 @@ class ContainerRuntime(ABC):
 
     @abstractmethod
     def infer_on_stop_docker_image(self):
-        """ On stop, the SM launches the NuvlaBox cleaner, called on-stop, and which is also launched in paused mode
+        """ On stop, the SM launches the NuvlaEdge cleaner, called on-stop, and which is also launched in paused mode
         at the beginning of the NB lifetime.
 
         Here, we find that service and infer its Docker image for later usage.
@@ -95,7 +95,7 @@ class ContainerRuntime(ABC):
         pass
 
     @abstractmethod
-    def launch_nuvlabox_on_stop(self, on_stop_docker_image):
+    def launch_nuvlaedge_on_stop(self, on_stop_docker_image):
         """ Launches the on-stop graceful shutdown
 
         :param on_stop_docker_image: Docker image to be launched
@@ -128,7 +128,7 @@ class ContainerRuntime(ABC):
         pass
 
     @abstractmethod
-    def set_nuvlabox_node_label(self, node_id=None):
+    def set_nuvlaedge_node_label(self, node_id=None):
         """ Gets detailed information about the node's spec
 
         :param node_id: Node ID
@@ -142,8 +142,8 @@ class ContainerRuntime(ABC):
         pass
 
     @abstractmethod
-    def find_nuvlabox_agent_container(self):
-        """ Finds and returns the NuvlaBox component
+    def find_nuvlaedge_agent_container(self):
+        """ Finds and returns the NuvlaEdge component
         """
         pass
 
@@ -190,7 +190,7 @@ class Kubernetes(ContainerRuntime):
         config.load_incluster_config()
         self.client = client.CoreV1Api()
         self.client_apps = client.AppsV1Api()
-        self.namespace = os.getenv('MY_NAMESPACE', 'nuvlabox')
+        self.namespace = os.getenv('MY_NAMESPACE', 'nuvlaedge')
         self.host_node_name = os.getenv('MY_HOST_NODE_NAME')
         self.minimum_major_version = '1'
         self.minimum_minor_version = '20'
@@ -198,7 +198,7 @@ class Kubernetes(ContainerRuntime):
         self.credentials_manager_component = 'kubernetes-credentials-manager'
         self.orchestrator = 'kubernetes'
         self.agent_dns = f'agent.{self.namespace}'
-        self.my_component_name = 'nuvlabox-engine-core'
+        self.my_component_name = 'nuvlaedge-engine-core'
 
     def list_internal_components(self, base_label=utils.base_label):
         # for k8s, components = pods
@@ -260,7 +260,7 @@ class Kubernetes(ContainerRuntime):
         # This component is not implemented for k8s (no need at the moment)
         return None
 
-    def launch_nuvlabox_on_stop(self, on_stop_docker_image):
+    def launch_nuvlaedge_on_stop(self, on_stop_docker_image):
         # not needed for k8s
         pass
 
@@ -287,12 +287,12 @@ class Kubernetes(ContainerRuntime):
 
         return errors, warnings
 
-    def set_nuvlabox_node_label(self, node_id=None):
+    def set_nuvlaedge_node_label(self, node_id=None):
         # no need to do this in k8s
         return True, None
 
     def restart_credentials_manager(self):
-        # the credentials manager is a container running in the nuvlabox-engine-core pod, alongside other containers,
+        # the credentials manager is a container running in the nuvlaedge-engine-core pod, alongside other containers,
         # and thus cannot be restarted individually.
 
         # we cannot restart the whole pod because that would bring all containers down, including this one
@@ -302,7 +302,7 @@ class Kubernetes(ContainerRuntime):
 
         return
 
-    def find_nuvlabox_agent_container(self):
+    def find_nuvlaedge_agent_container(self):
         search_label = f'component={self.my_component_name}'
         main_pod = self.client.list_namespaced_pod(namespace=self.namespace,
                                                    label_selector=search_label).items
@@ -318,7 +318,7 @@ class Kubernetes(ContainerRuntime):
             if container.name == 'agent':
                 return container, None
 
-        return None, f'Cannot find agent container within main NuvlaBox Engine pod with label {search_label}'
+        return None, f'Cannot find agent container within main NuvlaEdge Engine pod with label {search_label}'
 
     def list_all_containers_in_this_node(self):
         pods_here = self.client.list_pod_for_all_namespaces(field_selector=f'spec.nodeName={self.host_node_name}').items
@@ -361,21 +361,21 @@ class Docker(ContainerRuntime):
         """
         new = os.getenv('DATA_GATEWAY_NETWORK_ENCRYPTION')
         if not new:
-            if os.path.exists(utils.nuvlabox_shared_net_unencrypted):
+            if os.path.exists(utils.nuvlaedge_shared_net_unencrypted):
                 return {}
             else:
                 return {"encrypted": "True"}
 
         try:
-            self.find_network(utils.nuvlabox_shared_net)
-            self.logging.warning(f'Since {utils.nuvlabox_shared_net} already exists, the provided '
+            self.find_network(utils.nuvlaedge_shared_net)
+            self.logging.warning(f'Since {utils.nuvlaedge_shared_net} already exists, the provided '
                                  f'DATA_GATEWAY_NETWORK_ENCRYPTION [{new}] will not be immediately applied. '
                                  f'Reason: cannot update an existing network.')
         except docker.errors.NotFound:
             pass
         finally:
             if new.lower() == 'false':
-                Path(utils.nuvlabox_shared_net_unencrypted).touch()
+                Path(utils.nuvlaedge_shared_net_unencrypted).touch()
                 return {}
 
             return {"encrypted": "True"}
@@ -431,7 +431,7 @@ class Docker(ContainerRuntime):
         return True
 
     def infer_on_stop_docker_image(self):
-        on_stop_container_name = "nuvlabox-on-stop"
+        on_stop_container_name = "nuvlaedge-on-stop"
 
         try:
             container = self.client.containers.get(on_stop_container_name)
@@ -450,14 +450,14 @@ class Docker(ContainerRuntime):
 
         return None
 
-    def launch_nuvlabox_on_stop(self, on_stop_docker_image):
-        error_msg = 'Cannot launch NuvlaBox On-Stop graceful shutdown. ' \
+    def launch_nuvlaedge_on_stop(self, on_stop_docker_image):
+        error_msg = 'Cannot launch NuvlaEdge On-Stop graceful shutdown. ' \
                     'If decommissioning, container resources might be left behind'
 
         if not on_stop_docker_image:
             on_stop_docker_image = self.infer_on_stop_docker_image()
             if not on_stop_docker_image:
-                self.logging.warning(f'{error_msg}: Docker image not found for NuvlaBox On-Stop service')
+                self.logging.warning(f'{error_msg}: Docker image not found for NuvlaEdge On-Stop service')
                 return
 
         try:
@@ -471,10 +471,10 @@ class Docker(ContainerRuntime):
 
         random_identifier = ''.join(random.choices(string.ascii_uppercase, k=5))
         now = datetime.strftime(datetime.utcnow(), '%d-%m-%Y_%H%M%S')
-        on_stop_container_name = f"nuvlabox-on-stop-{random_identifier}-{now}"
+        on_stop_container_name = f"nuvlaedge-on-stop-{random_identifier}-{now}"
 
         label = {
-            "nuvlabox.on-stop": "True"
+            "nuvlaedge.on-stop": "True"
         }
         self.client.containers.run(on_stop_docker_image,
                                    name=on_stop_container_name,
@@ -513,10 +513,10 @@ class Docker(ContainerRuntime):
 
         return errors, warnings
 
-    def set_nuvlabox_node_label(self, node_id=None):
+    def set_nuvlaedge_node_label(self, node_id=None):
         if not node_id:
             node_id = self.get_node_id()
-        default_err_msg = f'Unable to set NuvlaBox node label for {node_id}'
+        default_err_msg = f'Unable to set NuvlaEdge node label for {node_id}'
 
         try:
             node = self.client.nodes.get(node_id)
@@ -553,7 +553,7 @@ class Docker(ContainerRuntime):
 
         return
 
-    def find_nuvlabox_agent_container(self):
+    def find_nuvlaedge_agent_container(self):
         agent_api_id_url = f'http://{self.agent_dns}/api/agent-container-id'
         try:
             agent_container_id = requests.get(agent_api_id_url)
@@ -578,7 +578,7 @@ class Docker(ContainerRuntime):
 
 # --------------------
 class Containers:
-    """ Common set of methods and variables for the NuvlaBox system-manager
+    """ Common set of methods and variables for the NuvlaEdge system-manager
     """
     def __init__(self, logging):
         """ Constructs an Container object

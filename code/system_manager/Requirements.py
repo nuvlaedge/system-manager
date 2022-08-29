@@ -1,7 +1,7 @@
 #!/usr/local/bin/python3.7
 # -*- coding: utf-8 -*-
 
-""" Check system requirements for the NuvlaBox Engine """
+""" Check system requirements for the NuvlaEdge Engine """
 
 import multiprocessing
 import logging
@@ -19,7 +19,7 @@ if 'SKIP_MINIMUM_REQUIREMENTS' in os.environ and \
 class SystemRequirements(Containers):
     """ The SystemRequirements contains all the methods and
     definitions for checking whether a device is physically capable of
-    hosting the NuvlaBox Engine
+    hosting the NuvlaEdge Engine
 
     Attributes:
 
@@ -107,7 +107,7 @@ class SystemRequirements(Containers):
 class SoftwareRequirements(Containers):
     """ The SoftwareRequirements contains all the methods and
     definitions for checking whether a device has all the Software
-    dependencies and configurations required by the NuvlaBox Engine
+    dependencies and configurations required by the NuvlaEdge Engine
 
     Attributes:
 

@@ -1,9 +1,9 @@
 #!/usr/local/bin/python
 # -*- coding: utf-8 -*-
 
-""" NuvlaBox System Manager service
+""" NuvlaEdge System Manager service
 
-checks requirements and supervises all internal components of the NuvlaBox
+checks requirements and supervises all internal components of the NuvlaEdge
 
 Arguments:
 
@@ -32,8 +32,8 @@ class GracefulShutdown:
         signal.signal(signal.SIGTERM, self.exit_gracefully)
 
     def exit_gracefully(self, signum, frame):
-        log.info(f'Starting on-stop graceful shutdown of the NuvlaBox...')
-        self_sup.container_runtime.launch_nuvlabox_on_stop(self_sup.on_stop_docker_image)
+        log.info(f'Starting on-stop graceful shutdown of the NuvlaEdge...')
+        self_sup.container_runtime.launch_nuvlaedge_on_stop(self_sup.on_stop_docker_image)
         sys.exit(0)
 
 
@@ -44,7 +44,7 @@ def requirements_check(sw_rq: MinReq.SoftwareRequirements,
                        system_rq: MinReq.SystemRequirements,
                        operational_status: list):
     """
-    Checks if the NuvlaBox requirements are met
+    Checks if the NuvlaEdge requirements are met
 
     :param sw_rq: instance of MinReq.SoftwareRequirements
     :param system_rq: instance of MinReq.SystemRequirements
@@ -74,7 +74,7 @@ def requirements_check(sw_rq: MinReq.SoftwareRequirements,
             operational_status.append((utils.status_unknown,
                                        'Minimum requirements not met, but SKIP_MINIMUM_REQUIREMENTS is enabled'))
             log.warning("You've decided to skip the system requirements verification. "
-                        "It is not guaranteed that the NuvlaBox will perform as it should. Continuing anyway...")
+                        "It is not guaranteed that the NuvlaEdge will perform as it should. Continuing anyway...")
 
     if not utils.status_file_exists():
         utils.set_operational_status(utils.status_operational)
@@ -107,12 +107,12 @@ while True:
 
     # certificate rotation check
     if self_sup.is_cert_rotation_needed():
-        log.info("Rotating NuvlaBox certificates...")
+        log.info("Rotating NuvlaEdge certificates...")
         self_sup.request_rotate_certificates()
 
     if self_sup.container_runtime.orchestrator != 'kubernetes':
         # in k8s there are no switched from uncluster - cluster, so there's no need for connectivity check
-        self_sup.check_nuvlabox_docker_connectivity()
+        self_sup.check_nuvlaedge_docker_connectivity()
 
         # the Data Gateway comes out of the box for k8s installations
         self_sup.manage_docker_data_gateway()
@@ -131,4 +131,3 @@ while True:
         utils.set_operational_status(utils.status_unknown)
 
     time.sleep(5)
-
