@@ -1,4 +1,9 @@
 # Changelog
+## [2.5.0] - 2022-08-31
+### Added
+### Changed
+ - Migration to NuvlaEdge
+ - Updated minimum RAM requirement from 1024 to 500 MB
 ## [2.4.0] - 2022-07-18
 ### Added
 ### Changed
