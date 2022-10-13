@@ -43,8 +43,10 @@ RUN pip install -r requirements.txt
 
 COPY code/ LICENSE /opt/nuvlaedge/
 
-VOLUME /srv/nuvlaedge/shared
+VOLUME /srv/nuvlabox/shared
 
 ONBUILD RUN ./license.sh
+
+RUN chmod +x /opt/nuvlaedge/manager_main.py
 
 ENTRYPOINT ["./manager_main.py"]

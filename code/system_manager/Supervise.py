@@ -9,13 +9,15 @@ import time
 import os
 import glob
 import OpenSSL
+import logging
 import socket
-from datetime import datetime
-from system_manager.common.logging import logging
-from system_manager.common import utils
-from system_manager.common.ContainerRuntime import Containers
 from threading import Timer
 from typing import Union
+from datetime import datetime
+
+from system_manager.common import utils
+from system_manager.common.ContainerRuntime import Containers
+from system_manager.manager.schemas import InitialSettings
 
 
 class ClusterNodeCannotManageDG(Exception):
@@ -41,22 +43,21 @@ class Supervise(Containers):
     graceful shutdowns
     """
 
-    def __init__(self):
+    def __init__(self, settings: InitialSettings, **kwargs):
         """ Constructs the Supervise object """
 
         # self.docker_client = docker.from_env()
         self.log = logging.getLogger(__name__)
-        super().__init__(self.log)
+        super().__init__(self.log, **kwargs)
+
+        # Engine compose settings
+        self.initial_settings: InitialSettings = settings
+        self.data_gateway_image = settings.NUVLAEDGE_DATA_GATEWAY_IMAGE
+        self.data_gateway_object = None
+        self.data_gateway_name = settings.NUVLAEDGE_DATA_GATEWAY_NAME
 
         self.system_usages = {}
         self.on_stop_docker_image = self.container_runtime.infer_on_stop_docker_image()
-        self.data_gateway_image = os.getenv('NUVLAEDGE_DATA_GATEWAY_IMAGE',
-                                            os.getenv('NUVLABOX_DATA_GATEWAY_IMAGE',
-                                                      'eclipse-mosquitto:1.6.12'))
-        self.data_gateway_object = None
-        self.data_gateway_name = os.getenv('NUVLAEDGE_DATA_GATEWAY_NAME',
-                                           os.getenv('NUVLABOX_DATA_GATEWAY_NAME',
-                                                     'data-gateway'))
         self.i_am_manager = self.is_cluster_enabled = self.node = None
         self.operational_status = []
         self.agent_dg_failed_connection = 0
@@ -84,7 +85,8 @@ class Supervise(Containers):
     def classify_this_node(self):
         # is it running in cluster mode?
         node_id = self.container_runtime.get_node_id()
-        is_cluster_enabled = self.container_runtime.is_coe_enabled(check_local_node_state=True)
+        is_cluster_enabled = \
+            self.container_runtime.is_coe_enabled(check_local_node_state=True)
 
         if not node_id or not is_cluster_enabled:
             self.i_am_manager = self.is_cluster_enabled = False
@@ -97,7 +99,8 @@ class Supervise(Containers):
         self.i_am_manager = True if node_id in managers else False
 
         if self.i_am_manager:
-            _update_label_success, err = self.container_runtime.set_nuvlaedge_node_label(node_id)
+            _update_label_success, err = \
+                self.container_runtime.set_nuvlaedge_node_label(node_id)
             if err:
                 self.operational_status.append((utils.status_degraded, err))
 
@@ -108,7 +111,8 @@ class Supervise(Containers):
             with open(utils.nuvlaedge_status_file) as nbsf:
                 usages = json.loads(nbsf.read())
         except FileNotFoundError:
-            self.log.warning("NuvlaEdge status metrics file not found locally...wait for Agent to create it")
+            self.log.warning("NuvlaEdge status metrics file not found locally...wait "
+                             "for Agent to create it")
             usages = {}
         except:
             self.log.exception("Unknown issues while retrieving NuvlaEdge status metrics")
@@ -123,12 +127,14 @@ class Supervise(Containers):
         """ Reads the list of peripherals discovered by the other NuvlaEdge microservices,
         via the shared volume folder
 
-        :returns list of peripherals [{...}, {...}] with the original data schema (see Nuvla nuvlaedge-peripherals)
+        :returns list of peripherals [{...}, {...}] with the original data schema
+        (see Nuvla nuvlaedge-peripherals)
         """
 
         peripherals = []
         try:
-            peripheral_files = glob.iglob(utils.nuvlaedge_peripherals_folder + '**/**', recursive=True)
+            peripheral_files = glob.iglob(utils.nuvlaedge_peripherals_folder + '**/**',
+                                          recursive=True)
         except FileNotFoundError:
             return peripherals
 
@@ -161,10 +167,13 @@ class Supervise(Containers):
                                                                          tail=tail)
 
             if component_logs:
-                log_id = '<b style="color: #{};">{} |</b> '.format(self.container_runtime.get_component_id(component)[:6],
-                                                                   self.container_runtime.get_component_name(component))
-                logs += '{} {}'.format(log_id,
-                                       '<br/>{}'.format(log_id).join(component_logs.splitlines()))
+                log_id = '<b style="color: #{};">{} |</b> '\
+                    .format(self.container_runtime.get_component_id(component)[:6],
+                            self.container_runtime.get_component_name(component))
+                logs += '{} {}'.format(
+                    log_id,
+                    '<br/>{}'.format(log_id).join(component_logs.splitlines()))
+
                 logs += '<br/>'
         return logs, int(time.time())
 
@@ -211,10 +220,13 @@ class Supervise(Containers):
                                  '</tr>'.format(container_stat.get('id', '')[:12],
                                                 container_stat.get('name', '')[:25],
                                                 container_stat.get('cpu-percent', 0.0),
-                                                container_stat.get('mem-usage-limit', "MB / MB"),
+                                                container_stat.get('mem-usage-limit',
+                                                                   "MB / MB"),
                                                 container_stat.get('mem-percent', 0.0),
-                                                container_stat.get('net-in-out', "MB / MB"),
-                                                container_stat.get('blk-in-out', "MB / MB"),
+                                                container_stat.get('net-in-out',
+                                                                   "MB / MB"),
+                                                container_stat.get('blk-in-out',
+                                                                   "MB / MB"),
                                                 container_stat.get('container-status'),
                                                 container_stat.get('restart-count', 0))
 
@@ -228,7 +240,8 @@ class Supervise(Containers):
         # certificates to be checked for expiration dates:
         check_expiry_date_on = ["ca.pem", "server-cert.pem", "cert.pem"]
 
-        # if the TLS sync file does not exist, then the compute-api is going to generate the certs by itself, by default
+        # if the TLS sync file does not exist, then the compute-api is going to generate
+        # the certs by itself, by default
         if not os.path.isfile(utils.tls_sync_file):
             return False
 
@@ -239,7 +252,8 @@ class Supervise(Containers):
                 with open(file_path) as fp:
                     content = fp.read()
 
-                cert_obj = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, content.encode())
+                cert_obj = OpenSSL.crypto.load_certificate(
+                    OpenSSL.crypto.FILETYPE_PEM, content.encode())
 
                 end_date = cert_obj.get_notAfter().decode()
                 formatted_end_date = datetime(int(end_date[0:4]),
@@ -250,7 +264,8 @@ class Supervise(Containers):
                 # if expiring in less than d days, rotate all
                 d = 5
                 if days_left.days < d:
-                    self.log.warning(f"{file_path} is expiring in less than {d} days. Requesting rotation of all certs")
+                    self.log.warning(f"{file_path} is expiring in less than {d} days. "
+                                     f"Requesting rotation of all certs")
                     return True
 
         return False
@@ -258,15 +273,19 @@ class Supervise(Containers):
     def request_rotate_certificates(self):
         """ Deletes the existing .tls sync file from the shared volume
 
-        By doing this, a new set of credentials shall be automatically created either by the compute-api or the
+        By doing this, a new set of credentials shall be automatically created either by
+         the compute-api or the
         kubernetes-credential-manager
 
-        This rotation will force the regeneration of the certificates and consequent recommissioning """
+        This rotation will force the regeneration of the certificates and consequent
+        recommissioning
+        """
 
         if os.path.isfile(utils.tls_sync_file):
             os.remove(utils.tls_sync_file)
             self.log.info(f"Removed {utils.tls_sync_file}. "
-                          f"Restarting {self.container_runtime.credentials_manager_component}")
+                          f"Restarting "
+                          f"{self.container_runtime.credentials_manager_component}")
             self.container_runtime.restart_credentials_manager()
 
     @cluster_workers_cannot_manage
@@ -279,7 +298,7 @@ class Supervise(Containers):
         :return: bool
         """
 
-        # At this stage, the DG network is setup
+        # At this stage, the DG network is set up
         # let's create the DG component
         labels = {
             "nuvlaedge.component": "True",
@@ -287,21 +306,21 @@ class Supervise(Containers):
             "nuvlaedge.data-gateway": "True"
         }
         try:
-            cmd = "sh -c 'sleep 10 && /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf'"
+            cmd = "sh -c 'sleep 10 && /usr/sbin/mosquitto -c " \
+                  "/mosquitto/config/mosquitto.conf'"
             if self.is_cluster_enabled and self.i_am_manager:
-                self.container_runtime.client.services.create(self.data_gateway_image,
-                                                              name=name,
-                                                              hostname=name,
-                                                              labels=labels,
-                                                              init=True,
-                                                              container_labels=labels,
-                                                              networks=[utils.nuvlaedge_shared_net],
-                                                              constraints=[
-                                                                  'node.role==manager',
-                                                                  f'node.labels.{utils.node_label_key}==True'
-                                                              ],
-                                                              command=cmd
-                                                              )
+                self.container_runtime.client.services.create(
+                    self.data_gateway_image,
+                    name=name,
+                    hostname=name,
+                    labels=labels,
+                    init=True,
+                    container_labels=labels,
+                    networks=[utils.nuvlaedge_shared_net],
+                    constraints=['node.role==manager',
+                                 f'node.labels.{utils.node_label_key}==True'],
+                    command=cmd)
+
             elif not self.is_cluster_enabled:
                 # Docker standalone mode
                 self.container_runtime.client.containers.run(self.data_gateway_image,
@@ -310,9 +329,11 @@ class Supervise(Containers):
                                                              init=True,
                                                              detach=True,
                                                              labels=labels,
-                                                             restart_policy={"Name": "always"},
+                                                             restart_policy={
+                                                                 "Name": "always"},
                                                              oom_score_adj=-900,
-                                                             network=utils.nuvlaedge_shared_net,
+                                                             network=
+                                                             utils.nuvlaedge_shared_net,
                                                              command=cmd
                                                              )
         except docker.errors.APIError as e:
@@ -320,7 +341,8 @@ class Supervise(Containers):
                 if '409' in str(e):
                     # already exists
                     self.log.warning(f'Despite the request to launch the Data Gateway, '
-                                     f'{name} seems to exist already. Forcing its restart just in case')
+                                     f'{name} seems to exist already. Forcing its '
+                                     f'restart just in case')
                     if self.is_cluster_enabled and self.i_am_manager:
                         self.container_runtime.client.services.get(name).force_update()
                     else:

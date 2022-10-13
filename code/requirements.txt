@@ -2,3 +2,4 @@ docker
 Flask
 gunicorn
 kubernetes
+pydantic

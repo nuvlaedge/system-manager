@@ -1,3 +1,4 @@
+import json
 import os
 import random
 import requests
@@ -8,6 +9,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
 from system_manager.common import utils
+from system_manager.manager.schemas import WorkerConfig
 
 KUBERNETES_SERVICE_HOST = os.getenv('KUBERNETES_SERVICE_HOST')
 if KUBERNETES_SERVICE_HOST:
@@ -184,7 +186,7 @@ class Kubernetes(ContainerRuntime):
     Kubernetes client
     """
 
-    def __init__(self, logging):
+    def __init__(self, logging, **kwargs):
         super().__init__(logging)
 
         config.load_incluster_config()
@@ -341,14 +343,17 @@ class Docker(ContainerRuntime):
     Docker client
     """
 
-    def __init__(self, logging):
+    def __init__(self, logging, **kwargs):
         super().__init__(logging)
         self.client = docker.from_env()
         self.minimum_version = 18
         self.lost_quorum_hint = 'possible that too few managers are online'
-        self.credentials_manager_component = "compute-api"
+        self.credentials_manager_component = kwargs['compute_api']
+
         self.orchestrator = 'docker'
-        self.agent_dns = 'agent'
+        self.agent_config: WorkerConfig = WorkerConfig.parse_obj(kwargs['agent'])
+        self.agent_dns = self.agent_config.container_name
+
         self.my_component_name = 'system-manager'
         self.dg_encrypt_options = self.load_data_gateway_network_options()
 
@@ -580,15 +585,15 @@ class Docker(ContainerRuntime):
 class Containers:
     """ Common set of methods and variables for the NuvlaEdge system-manager
     """
-    def __init__(self, logging):
+    def __init__(self, logging, **kwargs):
         """ Constructs an Container object
         """
         self.docker_socket_file = '/var/run/docker.sock'
 
         if ORCHESTRATOR == 'kubernetes':
-            self.container_runtime = Kubernetes(logging)
+            self.container_runtime = Kubernetes(logging, **kwargs)
         else:
             if os.path.exists(self.docker_socket_file):
-                self.container_runtime = Docker(logging)
+                self.container_runtime = Docker(logging, **kwargs)
             else:
                 raise Exception(f'Orchestrator is "{ORCHESTRATOR}", but file {self.docker_socket_file} is not present')

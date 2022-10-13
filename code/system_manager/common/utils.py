@@ -3,11 +3,10 @@
 
 """ Common set of managament methods to be used by
  the different system manager classes """
-
+import logging
 import os
-from system_manager.common.logging import logging
 
-data_volume = "/srv/nuvlaedge/shared"
+data_volume = "/srv/nuvlabox/shared"
 log_filename = "system-manager.log"
 nuvlaedge_status_file = "{}/.nuvlabox-status".format(data_volume)
 cert_file = f"{data_volume}/cert.pem"

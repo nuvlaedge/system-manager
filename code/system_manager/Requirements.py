@@ -25,11 +25,11 @@ class SystemRequirements(Containers):
 
     """
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         """ Constructs an SystemRequirements object """
 
         self.log = logging.getLogger(__name__)
-        super().__init__(self.log)
+        super().__init__(self.log,  **kwargs)
 
         self.minimum_requirements = {
             "cpu": 1,
@@ -113,12 +113,12 @@ class SoftwareRequirements(Containers):
 
     """
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         """ Constructs the class """
 
         self.log = logging.getLogger(__name__)
         self.not_met = []
-        super().__init__(self.log)
+        super().__init__(self.log, **kwargs)
 
     def check_sw_requirements(self):
         """ Checks all the SW requirements """

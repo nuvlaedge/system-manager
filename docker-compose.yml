@@ -7,7 +7,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./code/templates:/opt/nuvlaedge/templates
       - ./code/static:/opt/nuvlaedge/static
-      - ./code/test/.nuvlabox-status:/srv/nuvlaedge/shared/.nuvlabox-status
+      - ./code/test/.nuvlabox-status:/srv/nuvlabox/shared/.nuvlabox-status
     labels:
       - nuvlaedge.component=True
       - nuvlaedge.deployment=production
