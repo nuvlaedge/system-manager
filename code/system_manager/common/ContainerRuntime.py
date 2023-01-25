@@ -346,10 +346,10 @@ class Docker(ContainerRuntime):
         self.client = docker.from_env()
         self.minimum_version = 18
         self.lost_quorum_hint = 'possible that too few managers are online'
-        self.credentials_manager_component = "compute-api"
+        self.credentials_manager_component = os.getenv('COMPOSE_PROJECT') + '-compute-api-1'
         self.orchestrator = 'docker'
-        self.agent_dns = 'agent'
-        self.my_component_name = 'system-manager'
+        self.agent_dns = os.getenv('COMPOSE_PROJECT') + '-agent-1'
+        self.my_component_name = os.getenv('COMPOSE_PROJECT') + '-system-manager-1'
         self.dg_encrypt_options = self.load_data_gateway_network_options()
 
     def load_data_gateway_network_options(self) -> dict:
@@ -431,7 +431,7 @@ class Docker(ContainerRuntime):
         return True
 
     def infer_on_stop_docker_image(self):
-        on_stop_container_name = "nuvlaedge-on-stop"
+        on_stop_container_name = os.getenv('COMPOSE_PROJECT') + "-on-stop-1"
 
         try:
             container = self.client.containers.get(on_stop_container_name)
@@ -581,7 +581,7 @@ class Containers:
     """ Common set of methods and variables for the NuvlaEdge system-manager
     """
     def __init__(self, logging):
-        """ Constructs an Container object
+        """ Constructs Container object
         """
         self.docker_socket_file = '/var/run/docker.sock'
 

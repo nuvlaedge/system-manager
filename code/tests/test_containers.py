@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import logging
+import os
+
 import mock
 import unittest
 import system_manager.common.ContainerRuntime as ContainerRuntime
@@ -10,6 +12,7 @@ import system_manager.common.ContainerRuntime as ContainerRuntime
 class ContainersCase(unittest.TestCase):
 
     def setUp(self) -> None:
+        os.environ['COMPOSE_PROJECT'] = 'tests'
         with mock.patch('os.path.exists') as mock_exists:
             mock_exists.return_value = True
             self.obj = ContainerRuntime.Containers(logging)

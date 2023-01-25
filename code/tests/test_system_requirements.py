@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import os
 
 from system_manager.Requirements import SystemRequirements
 import logging
@@ -10,6 +11,7 @@ import unittest
 class SystemRequirementsTestCase(unittest.TestCase):
 
     def setUp(self):
+        os.environ['COMPOSE_PROJECT'] = 'tests'
         self.obj = SystemRequirements()
         self.obj.container_runtime = mock.MagicMock()
         logging.disable(logging.CRITICAL)

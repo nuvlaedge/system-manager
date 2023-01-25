@@ -1,4 +1,9 @@
 # Changelog
+## Unreleased
+### Added
+ - Support for partial isolation by removing fixed names of containers  
+### Changed
+
 ## [2.5.0] - 2022-08-31
 ### Added
 ### Changed

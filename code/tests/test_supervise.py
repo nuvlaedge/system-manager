@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import os
 
 import docker
 import logging
@@ -15,7 +16,7 @@ class SuperviseTestCase(unittest.TestCase):
 
     def setUp(self) -> None:
         Supervise.__bases__ = (fake.Fake.imitate(Containers),)
-
+        os.environ['COMPOSE_PROJECT'] = 'tests'
         self.obj = Supervise.Supervise()
         self.obj.container_runtime = mock.MagicMock()
         logging.disable(logging.CRITICAL)

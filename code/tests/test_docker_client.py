@@ -16,6 +16,7 @@ class DockerTestCase(unittest.TestCase):
     @mock.patch('system_manager.common.ContainerRuntime.Docker.load_data_gateway_network_options')
     def setUp(self, mock_load_data_gateway_network_options) -> None:
         mock_load_data_gateway_network_options.return_value = {}
+        os.environ['COMPOSE_PROJECT'] = 'tests'
         self.obj = ContainerRuntime.Docker(logging)
         self.obj.client = mock.MagicMock()
         logging.disable(logging.CRITICAL)
@@ -27,7 +28,7 @@ class DockerTestCase(unittest.TestCase):
         # the base class should also have been set
         self.assertEqual(self.obj.dg_encrypt_options, {},
                          'Network encryption should be enabled by default')
-        self.assertEqual(self.obj.my_component_name, "system-manager",
+        self.assertEqual(self.obj.my_component_name, f"{os.getenv('COMPOSE_PROJECT')}-system-manager-1",
                          'Docker client was not properly initialized')
 
     @mock.patch.object(ContainerRuntime.Docker, 'find_network')

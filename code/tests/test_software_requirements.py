@@ -11,6 +11,7 @@ import unittest
 class SoftwareRequirementsTestCase(unittest.TestCase):
 
     def setUp(self):
+        os.environ['COMPOSE_PROJECT'] = 'tests'
         self.obj = SoftwareRequirements()
         self.obj.container_runtime = mock.MagicMock()
         logging.disable(logging.CRITICAL)
