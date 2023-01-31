@@ -1,7 +1,6 @@
 name: System-Manager Validation
 
 on:
-  pull_request:
   workflow_run:
     workflows: ["BUILD", "NuvlaEdge Component Build"]
     types:
