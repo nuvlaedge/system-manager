@@ -7,6 +7,10 @@ on:
       - completed
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: true
+
 env:
   VALIDATION_PACKAGE_NAME: "validation-latest-py3-none-any.whl"
   BRANCH_NAME: ${{ github.head_ref || github.ref_name || vars.GITHUB_REF_NAME }}
