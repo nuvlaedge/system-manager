@@ -28,7 +28,7 @@ class DockerTestCase(unittest.TestCase):
         # the base class should also have been set
         self.assertEqual(self.obj.dg_encrypt_options, {},
                          'Network encryption should be enabled by default')
-        self.assertEqual(self.obj.my_component_name, f"{os.getenv('COMPOSE_PROJECT')}-system-manager-1",
+        self.assertEqual(self.obj.my_component_name, f"{os.getenv('COMPOSE_PROJECT')}_system-manager_1",
                          'Docker client was not properly initialized')
 
     @mock.patch.object(ContainerRuntime.Docker, 'find_network')
