@@ -17,6 +17,7 @@ env:
 
 jobs:
   setup-strategy:
+    runs-on: ubuntu-latest
     outputs:
       boards: ${{ steps.set-boards.outputs.boards }}
       tests: ${{ steps.set-tests.outputs.tests }}
