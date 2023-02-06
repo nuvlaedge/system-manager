@@ -315,7 +315,7 @@ class Kubernetes(ContainerRuntime):
             this_pod = main_pod[0]
 
         for container in this_pod.status.container_statuses:
-            if container.name == 'agent':
+            if container.name == os.getenv("COMPOSE_PROJECT", "nuvlaedge") + '-agent':
                 return container, None
 
         return None, f'Cannot find agent container within main NuvlaEdge Engine pod with label {search_label}'
@@ -346,10 +346,11 @@ class Docker(ContainerRuntime):
         self.client = docker.from_env()
         self.minimum_version = 18
         self.lost_quorum_hint = 'possible that too few managers are online'
-        self.credentials_manager_component = "compute-api"
+        self.credentials_manager_component = os.getenv("COMPOSE_PROJECT", "nuvlaedge") + "-compute-api"
+
         self.orchestrator = 'docker'
-        self.agent_dns = 'agent'
-        self.my_component_name = 'system-manager'
+        self.agent_dns = os.getenv("COMPOSE_PROJECT", "nuvlaedge") + "-agent"
+        self.my_component_name = os.getenv("COMPOSE_PROJECT", "nuvlaedge") + '-system-manager'
         self.dg_encrypt_options = self.load_data_gateway_network_options()
 
     def load_data_gateway_network_options(self) -> dict:
@@ -431,7 +432,7 @@ class Docker(ContainerRuntime):
         return True
 
     def infer_on_stop_docker_image(self):
-        on_stop_container_name = "nuvlaedge-on-stop"
+        on_stop_container_name = os.getenv('COMPOSE_PROJECT', 'nuvlaedge') + "-on-stop"
 
         try:
             container = self.client.containers.get(on_stop_container_name)
