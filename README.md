@@ -40,15 +40,6 @@ There is a [POM file](pom.xml) which is responsible for handling the multi-archi
 
 Simply run `docker-compose up --build`
 
-
-## Test the NuvlaEdge System Manager
-
-This microservice comes with a Docker healtcheck, so your first check should be done by running `docker ps` and ensuring that the container status is "_healthy_". If that's not the case, then please check the Docker logs of this container because maybe your system has failed to meet the minimum requirements.
-
-Once your container is healthy, you can also navigate to [localhost:3636](http://localhost:3636) where you'll find an overview dashboard. By default this page can only be accessed from localhost. **If you want to make this page available from outside localhost as well** (for debugging purposes for example), then simply go to [localhost:3636/debug?enabled=true](http://localhost:3636/debug?enabled=true), and the same page will also be published onto port 3637.
-
-[localhost:3636/debug?enabled=false](http://localhost:3636/debug?enabled=false) will close port 3637 to the outside again.
-
 ## Contributing
 
 This is an open-source project, so all community contributions are more than welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md)

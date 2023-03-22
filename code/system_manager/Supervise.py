@@ -3,19 +3,20 @@
 
 """ Contains the supervising class for all NuvlaEdge Engine components """
 
-import docker
-import json
-import time
 import os
-import glob
-import OpenSSL
+import json
 import socket
+
+import docker
+import OpenSSL
+
 from datetime import datetime
-from system_manager.common.logging import logging
-from system_manager.common import utils
-from system_manager.common.ContainerRuntime import Containers
 from threading import Timer
 from typing import Union
+
+from system_manager.common import utils
+from system_manager.common.logging import logging
+from system_manager.common.ContainerRuntime import Containers
 
 
 class ClusterNodeCannotManageDG(Exception):
@@ -48,7 +49,6 @@ class Supervise(Containers):
         self.log = logging.getLogger(__name__)
         super().__init__(self.log)
 
-        self.system_usages = {}
         self.on_stop_docker_image = self.container_runtime.infer_on_stop_docker_image()
         self.data_gateway_image = os.getenv('NUVLAEDGE_DATA_GATEWAY_IMAGE',
                                             os.getenv('NUVLABOX_DATA_GATEWAY_IMAGE',
@@ -63,23 +63,6 @@ class Supervise(Containers):
         self.lost_quorum_hint = 'possible that too few managers are online'
         self.nuvlaedge_containers = []
         self.nuvlaedge_containers_restarting = {}
-
-    @staticmethod
-    def printer(content, file):
-        """ Pretty prints to template file """
-
-        with open("{}/{}".format(utils.html_templates, file), 'w') as p:
-            p.write("{}".format(content))
-
-    @staticmethod
-    def reader(file):
-        """ Reads template file
-
-        :returns file content as a string
-        """
-
-        with open("{}/{}".format(utils.html_templates, file)) as r:
-            return r.read()
 
     def classify_this_node(self):
         # is it running in cluster mode?
@@ -100,127 +83,6 @@ class Supervise(Containers):
             _update_label_success, err = self.container_runtime.set_nuvlaedge_node_label(node_id)
             if err:
                 self.operational_status.append((utils.status_degraded, err))
-
-    def get_nuvlaedge_status(self):
-        """ Re-uses the consumption metrics from NuvlaEdge Agent """
-
-        try:
-            with open(utils.nuvlaedge_status_file) as nbsf:
-                usages = json.loads(nbsf.read())
-        except FileNotFoundError:
-            self.log.warning("NuvlaEdge status metrics file not found locally...wait for Agent to create it")
-            usages = {}
-        except:
-            self.log.exception("Unknown issues while retrieving NuvlaEdge status metrics")
-            usages = self.system_usages
-
-        # update in-mem copy of usages
-        self.system_usages = usages
-
-        return usages
-
-    def get_nuvlaedge_peripherals(self):
-        """ Reads the list of peripherals discovered by the other NuvlaEdge microservices,
-        via the shared volume folder
-
-        :returns list of peripherals [{...}, {...}] with the original data schema (see Nuvla nuvlaedge-peripherals)
-        """
-
-        peripherals = []
-        try:
-            peripheral_files = glob.iglob(utils.nuvlaedge_peripherals_folder + '**/**', recursive=True)
-        except FileNotFoundError:
-            return peripherals
-
-        for per_file_path in peripheral_files:
-            if os.path.isdir(per_file_path):
-                continue
-            try:
-                with open(per_file_path) as p:
-                    peripheral_content = json.loads(p.read())
-            except FileNotFoundError:
-                logging.warning("Cannot read peripheral {}".format(per_file_path))
-                continue
-
-            peripherals.append(peripheral_content)
-
-        return peripherals
-
-    def get_internal_logs_html(self, tail=30, since=None):
-        """ Get the logs for all NuvlaEdge containers
-
-        :returns list of log generators
-        :returns timestamp for when the logs were fetched
-        """
-
-        nb_components = self.container_runtime.list_internal_components()
-        logs = ''
-        for component in nb_components:
-            component_logs = self.container_runtime.fetch_container_logs(component,
-                                                                         since=since,
-                                                                         tail=tail)
-
-            if component_logs:
-                log_id = '<b style="color: #{};">{} |</b> '.format(self.container_runtime.get_component_id(component)[:6],
-                                                                   self.container_runtime.get_component_name(component))
-                logs += '{} {}'.format(log_id,
-                                       '<br/>{}'.format(log_id).join(component_logs.splitlines()))
-                logs += '<br/>'
-        return logs, int(time.time())
-
-    def write_container_stats_table_html(self):
-        """ Run container stats """
-
-        stats = '<table class="table table-striped table-hover mt-5 mr-auto">' \
-                ' <caption>Container Stats, last update: {} UTC</caption>' \
-                ' <thead class="bg-secondary text-light">' \
-                '  <tr>' \
-                '    <th scope="col">CONTAINER ID</th>' \
-                '    <th scope="col">NAME</th>' \
-                '    <th scope="col">CPU %</th>' \
-                '    <th scope="col">MEM USAGE/LIMIT</th>' \
-                '    <th scope="col">MEM %</th>' \
-                '    <th scope="col">NET I/O</th>' \
-                '    <th scope="col">BLOCK I/O</th>' \
-                '    <th scope="col">STATUS</th>' \
-                '    <th scope="col">RESTARTED</th>' \
-                '  </tr>' \
-                ' </thead>' \
-                ' <tbody>'.format(datetime.utcnow())
-
-        if os.path.exists(utils.container_stats_json_file):
-            with open(utils.container_stats_json_file) as cstats:
-                try:
-                    container_stats = json.load(cstats)
-                except json.decoder.JSONDecodeError as e:
-                    logging.warning(f'Unable to read container stats ({cstats.read()} '
-                                    f'from {utils.container_stats_json_file}. '
-                                    f'Error: {str(e)}')
-                else:
-                    for container_stat in container_stats:
-                        stats += '<tr>' \
-                                 ' <th scope="row">{}</th> ' \
-                                 ' <td>{}</td>' \
-                                 ' <td>{}</td>' \
-                                 ' <td>{}</td>' \
-                                 ' <td>{}</td>' \
-                                 ' <td>{}</td>' \
-                                 ' <td>{}</td>' \
-                                 ' <td>{}</td>' \
-                                 ' <td>{}</td>' \
-                                 '</tr>'.format(container_stat.get('id', '')[:12],
-                                                container_stat.get('name', '')[:25],
-                                                container_stat.get('cpu-percent', 0.0),
-                                                container_stat.get('mem-usage-limit', "MB / MB"),
-                                                container_stat.get('mem-percent', 0.0),
-                                                container_stat.get('net-in-out', "MB / MB"),
-                                                container_stat.get('blk-in-out', "MB / MB"),
-                                                container_stat.get('container-status'),
-                                                container_stat.get('restart-count', 0))
-
-        stats += ' </tbody>' \
-                 '</table>'
-        self.printer(stats, utils.container_stats_html_file)
 
     def is_cert_rotation_needed(self):
         """ Checks whether the API certs are about to expire """
