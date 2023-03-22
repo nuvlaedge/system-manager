@@ -52,7 +52,7 @@ class Supervise(Containers):
         self.on_stop_docker_image = self.container_runtime.infer_on_stop_docker_image()
         self.data_gateway_image = os.getenv('NUVLAEDGE_DATA_GATEWAY_IMAGE',
                                             os.getenv('NUVLABOX_DATA_GATEWAY_IMAGE',
-                                                      'eclipse-mosquitto:1.6.12'))
+                                                      'eclipse-mosquitto:2.0.15-openssl'))
         self.data_gateway_object = None
         self.data_gateway_name = os.getenv('NUVLAEDGE_DATA_GATEWAY_NAME',
                                            os.getenv('NUVLABOX_DATA_GATEWAY_NAME',
