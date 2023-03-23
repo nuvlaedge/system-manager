@@ -28,18 +28,6 @@ class SuperviseTestCase(unittest.TestCase):
         self.assertEqual(self.obj.agent_dg_failed_connection, 0,
                          'Failed to initialize Supervise class')
 
-    def test_printer(self):
-        # just make sure the write happens
-        with mock.patch('system_manager.Supervise.open') as mock_open:
-            self.assertIsNone(self.obj.printer('content', 'file'),
-                              'Failed to write to file')
-
-    def test_reader(self):
-        # read string from file
-        with mock.patch('system_manager.Supervise.open', mock.mock_open(read_data='content')):
-            self.assertEqual(self.obj.reader('file'), 'content',
-                             'Failed to read content from file')
-
     def test_classify_this_node(self):
         self.obj.container_runtime.get_node_id.return_value = 'id'
         # if COE is disabled, get None and set attrs to false
@@ -78,95 +66,6 @@ class SuperviseTestCase(unittest.TestCase):
         self.obj.classify_this_node()
         self.assertIn((Supervise.utils.status_degraded, 'label-error'), self.obj.operational_status,
                       'Failed to set degraded state')
-
-    def test_get_nuvlaedge_status(self):
-        # cope with error while opening status file for reading
-        with mock.patch('system_manager.Supervise.open') as mock_open:
-            # file not found
-            mock_open.side_effect = FileNotFoundError
-            self.assertEqual(self.obj.get_nuvlaedge_status(), {},
-                             'Failed to set system usages when NB status is not found')
-
-        with mock.patch('system_manager.Supervise.open', mock.mock_open(read_data="'bad-content'")):
-            # bad json
-            self.assertEqual(self.obj.get_nuvlaedge_status(), self.obj.system_usages,
-                             'Failed to set system usages when NB status is malformed')
-
-        with mock.patch('system_manager.Supervise.open', mock.mock_open(read_data='{"usages": true}')):
-            # read well
-            self.assertEqual(self.obj.get_nuvlaedge_status(), {"usages": True},
-                             'Failed to set system usages from NB status')
-
-    @mock.patch('os.path.isdir')
-    @mock.patch('glob.iglob')
-    def test_get_nuvlaedge_peripherals(self, mock_iglob, mock_isdir):
-        # if peripherals folder doe snot exist get nothing
-        mock_iglob.side_effect = FileNotFoundError
-        self.assertEqual(self.obj.get_nuvlaedge_peripherals(), [],
-                         'Got NB peripherals even though peripherals folder does not exist')
-
-        mock_iglob.reset_mock(side_effect=True)
-        mock_iglob.return_value = ['per1', 'per2']
-        # if all returned "filed" are dirs, get nothing again
-        mock_isdir.return_value = True
-        self.assertEqual(self.obj.get_nuvlaedge_peripherals(), [],
-                         'Got NB peripherals even though there are no files, just folders')
-        self.assertEqual(mock_isdir.call_count, 2,
-                         'Should have checked the 2 returned paths from iglob')
-
-        # otherwise, open files for reading
-        mock_isdir.return_value = False
-        # if files do not exist, get nothing
-        with mock.patch('system_manager.Supervise.open') as mock_open:
-            mock_open.side_effect = [FileNotFoundError, FileNotFoundError]
-            self.assertEqual(self.obj.get_nuvlaedge_peripherals(), [],
-                             'Got NB peripherals even though there are no files')
-
-        # otherwise, get their content
-        with mock.patch('system_manager.Supervise.open', mock.mock_open(read_data='{"foo": "bar"}')):
-            self.assertEqual(self.obj.get_nuvlaedge_peripherals(), [{"foo": "bar"}, {"foo": "bar"}],
-                             'Failed to get NB peripherals from local volume')
-
-    def test_get_internal_logs_html(self):
-        # if there are no components, there are no logs
-        self.obj.container_runtime.list_internal_components.return_value = []
-        self.assertEqual(self.obj.get_internal_logs_html()[0], '',
-                         'Got internal logs even though there are no components to log from')
-        self.obj.container_runtime.list_internal_components.assert_called_once()
-
-        # otherwise, fetch logs from the respective containers
-        self.obj.container_runtime.list_internal_components.return_value = ['component1', 'component2']
-        self.obj.container_runtime.fetch_container_logs.return_value = 'multiline\nlogs'
-        self.obj.container_runtime.get_component_id.return_value = 'id'
-        self.obj.container_runtime.get_component_name.return_value = 'name'
-
-        out = self.obj.get_internal_logs_html()
-        self.assertGreater(len(out[0]), 0,
-                           'There are logs but got empty string')
-        self.assertIsInstance(out[0], str,
-                              'Logs should be a string')
-        self.assertIsInstance(out[1], int,
-                              'Time should be passed with each log')
-
-    @mock.patch.object(Supervise.Supervise, 'printer')
-    @mock.patch('os.path.exists')
-    def test_write_container_stats_table_html(self, mock_exists, mock_printer):
-        # if stats json file does not exist, don't read it
-        mock_printer.return_value = None
-        mock_exists.return_value = False
-        with mock.patch('system_manager.Supervise.open') as mock_open:
-            self.assertIsNone(self.obj.write_container_stats_table_html(),
-                              'Should have just written the HTML template onto the stats table')
-            mock_open.assert_not_called()
-
-        mock_printer.assert_called_once()
-
-        # otherwise, print the stats content
-        mock_exists.return_value = True
-        with mock.patch('system_manager.Supervise.open', mock.mock_open(read_data='[{}, {}]')) as mock_open:
-            self.assertIsNone(self.obj.write_container_stats_table_html(),
-                              'Failed to write container stats into HTML table')
-            mock_open.assert_called_once_with(Supervise.utils.container_stats_json_file)
 
     @mock.patch('OpenSSL.crypto.load_certificate')
     @mock.patch('OpenSSL.crypto')

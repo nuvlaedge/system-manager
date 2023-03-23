@@ -8,12 +8,13 @@ checks requirements and supervises all internal components of the NuvlaEdge
 Arguments:
 
 """
-import sys
 import os
-import subprocess
-import system_manager.Requirements as MinReq
+import sys
 import signal
 import time
+
+import system_manager.Requirements as MinReq
+
 from system_manager.common import utils
 from system_manager.common.logging import logging
 from system_manager.Supervise import Supervise
@@ -92,15 +93,9 @@ def requirements_check(sw_rq: MinReq.SoftwareRequirements,
 system_requirements = MinReq.SystemRequirements()
 software_requirements = MinReq.SoftwareRequirements()
 
-api_launch = 'gunicorn --bind=0.0.0.0:3636 --threads=2 --worker-class=gthread --workers=1 --reload wsgi:app --daemon'
-api = None
 while True:
     self_sup.operational_status = []
     requirements_check(software_requirements, system_requirements, self_sup.operational_status)
-    if not api or not api.pid:
-        api = subprocess.Popen(api_launch.split())
-
-    self_sup.write_container_stats_table_html()
 
     # refresh this node's status, to capture any changes in the COE/Cluster configuration
     self_sup.classify_this_node()
