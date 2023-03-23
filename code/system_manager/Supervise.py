@@ -52,7 +52,7 @@ class Supervise(Containers):
         self.on_stop_docker_image = self.container_runtime.infer_on_stop_docker_image()
         self.data_gateway_image = os.getenv('NUVLAEDGE_DATA_GATEWAY_IMAGE',
                                             os.getenv('NUVLABOX_DATA_GATEWAY_IMAGE',
-                                                      'eclipse-mosquitto:1.6.12'))
+                                                      'eclipse-mosquitto:2.0.15-openssl'))
         self.data_gateway_object = None
         self.data_gateway_name = os.getenv('NUVLAEDGE_DATA_GATEWAY_NAME',
                                            os.getenv('NUVLABOX_DATA_GATEWAY_NAME',
@@ -287,13 +287,15 @@ class Supervise(Containers):
             "nuvlaedge.data-gateway": "True"
         }
         try:
-            cmd = "sh -c 'sleep 10 && /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf'"
+            cmd = "sh -c 'sleep 10; " \
+                  "cp /mosquitto-no-auth.conf /mosquitto/config/mosquitto.conf 2>/dev/null; " \
+                  "exec /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf'"
             if self.is_cluster_enabled and self.i_am_manager:
                 self.container_runtime.client.services.create(self.data_gateway_image,
                                                               name=name,
                                                               hostname=name,
-                                                              labels=labels,
                                                               init=True,
+                                                              labels=labels,
                                                               container_labels=labels,
                                                               networks=[utils.nuvlaedge_shared_net],
                                                               constraints=[
@@ -311,7 +313,6 @@ class Supervise(Containers):
                                                              detach=True,
                                                              labels=labels,
                                                              restart_policy={"Name": "always"},
-                                                             oom_score_adj=-900,
                                                              network=utils.nuvlaedge_shared_net,
                                                              command=cmd
                                                              )
