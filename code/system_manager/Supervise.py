@@ -294,8 +294,8 @@ class Supervise(Containers):
                 self.container_runtime.client.services.create(self.data_gateway_image,
                                                               name=name,
                                                               hostname=name,
-                                                              labels=labels,
                                                               init=True,
+                                                              labels=labels,
                                                               container_labels=labels,
                                                               networks=[utils.nuvlaedge_shared_net],
                                                               constraints=[
@@ -313,7 +313,6 @@ class Supervise(Containers):
                                                              detach=True,
                                                              labels=labels,
                                                              restart_policy={"Name": "always"},
-                                                             oom_score_adj=-900,
                                                              network=utils.nuvlaedge_shared_net,
                                                              command=cmd
                                                              )
