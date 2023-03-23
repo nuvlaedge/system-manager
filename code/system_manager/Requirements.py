@@ -7,6 +7,8 @@ import multiprocessing
 import logging
 import shutil
 import os
+
+from system_manager.common import utils
 from system_manager.common.ContainerRuntime import Containers
 
 
@@ -33,7 +35,7 @@ class SystemRequirements(Containers):
 
         self.minimum_requirements = {
             "cpu": 1,
-            "ram": 500,
+            "ram": 480,
             "disk": 2
         }
 
@@ -128,13 +130,15 @@ class SoftwareRequirements(Containers):
                   f'Need version {self.container_runtime.minimum_version} or higher.'
             self.not_met.append(msg)
 
-        if not self.container_runtime.is_coe_enabled():
-            msg = 'Your Container Orchestration Engine is not enabled.'
-            if self.container_runtime.orchestrator != 'kubernetes':
-                msg += ' Please make sure Docker is running with Swarm enabled.'
-            self.not_met.append(msg)
-
         if self.not_met:
             return False
 
         return True
+
+    def check_sw_optional_requirements(self):
+        msgs = []
+
+        if self.container_runtime.orchestrator == 'docker' and not self.container_runtime.is_coe_enabled():
+            msgs += (utils.status_operational, 'Docker Swarm mode is not enabled.')
+
+        return msgs

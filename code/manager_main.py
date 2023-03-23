@@ -61,21 +61,12 @@ def requirements_check(sw_rq: MinReq.SoftwareRequirements,
         not_met = sw_rq.not_met + system_rq.not_met
         not_met_msg = "\n\t* " + "\n\t* ".join(not_met) if not_met else ''
         err_msg = f"System does not meet the minimum requirements! {not_met_msg} \n"
-
         log.warning(err_msg)
-        if not MinReq.SKIP_MINIMUM_REQUIREMENTS:
-            if not utils.status_file_exists():
-                log.error("Cannot continue...")
-                # sleep to make sure we don't fall into Docker's exponential restart time
-                time.sleep(10)
-                sys.exit(1)
 
-            operational_status.append((utils.status_degraded, err_msg))
-        else:
-            operational_status.append((utils.status_unknown,
-                                       'Minimum requirements not met, but SKIP_MINIMUM_REQUIREMENTS is enabled'))
-            log.warning("You've decided to skip the system requirements verification. "
-                        "It is not guaranteed that the NuvlaEdge will perform as it should. Continuing anyway...")
+        op_status = utils.status_operational if MinReq.SKIP_MINIMUM_REQUIREMENTS else utils.status_degraded
+        operational_status.append((op_status, err_msg))
+
+    operational_status += sw_rq.check_sw_optional_requirements()
 
     if not utils.status_file_exists():
         utils.set_operational_status(utils.status_operational)
@@ -125,4 +116,4 @@ while True:
     else:
         utils.set_operational_status(utils.status_unknown)
 
-    time.sleep(5)
+    time.sleep(15)
