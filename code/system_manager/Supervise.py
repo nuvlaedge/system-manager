@@ -289,7 +289,7 @@ class Supervise(Containers):
         try:
             cmd = "sh -c 'sleep 10; " \
                   "cp /mosquitto-no-auth.conf /mosquitto/config/mosquitto.conf 2>/dev/null; " \
-                  "/usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf'"
+                  "exec /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf'"
             if self.is_cluster_enabled and self.i_am_manager:
                 self.container_runtime.client.services.create(self.data_gateway_image,
                                                               name=name,
