@@ -3,19 +3,18 @@
 
 """ Contains the supervising class for all NuvlaEdge Engine components """
 
-import os
 import json
+import logging
+import os
 import socket
-
-import docker
-import OpenSSL
-
 from datetime import datetime
 from threading import Timer
 from typing import Union
 
+import docker
+import OpenSSL
+
 from system_manager.common import utils
-from system_manager.common.logging import logging
 from system_manager.common.ContainerRuntime import Containers
 
 

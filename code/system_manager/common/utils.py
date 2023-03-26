@@ -5,8 +5,8 @@
  the different system manager classes """
 
 import os
+import logging
 
-from system_manager.common.logging import logging
 
 data_volume = "/srv/nuvlaedge/shared"
 operational_status_file = f'{data_volume}/.status'
