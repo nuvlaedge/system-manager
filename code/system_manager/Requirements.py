@@ -139,6 +139,6 @@ class SoftwareRequirements(Containers):
         msgs = []
 
         if self.container_runtime.orchestrator == 'docker' and not self.container_runtime.is_coe_enabled():
-            msgs += (utils.status_operational, 'Docker Swarm mode is not enabled.')
+            msgs.append((utils.status_operational, 'Docker Swarm mode is not enabled.'))
 
         return msgs

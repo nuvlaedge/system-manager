@@ -316,8 +316,6 @@ class Supervise(Containers):
                 # double check DG still has the right network
                 self.check_dg_network(data_gateway_network)
 
-        return
-
     def manage_docker_data_gateway_connect_to_network(self, containers_to_connect: list,
                                                       agent_container_id: str) -> None:
         """

@@ -28,15 +28,17 @@ log = logging.getLogger(__name__)
 
 
 def set_operational_status(status: str, notes: list = []):
+    log.debug(f'Write operational status "{status}" to file "{operational_status_file}"')
     with open(operational_status_file, 'w') as s:
         s.write(status)
 
     try:
+        notes_str = '\n'.join(notes)
+        log.debug(f'Write operational status notes to file "{operational_status_notes_file}": {notes_str}')
         with open(operational_status_notes_file, 'w') as sn:
-            sn.write('\n'.join(notes))
+            sn.write(notes_str)
     except Exception as e:
         log.warning(f'Failed to write status notes {notes} in {operational_status_notes_file}: {str(e)}')
-        pass
 
 
 def status_file_exists() -> bool:

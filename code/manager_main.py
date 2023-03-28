@@ -115,8 +115,7 @@ def argument_parser():
 
 
 def configure_root_logger(log_level_name):
-    logger = logging.getLogger()
-    logger.setLevel(logging.getLevelName(log_level_name))
+    logging.basicConfig(level=logging.getLevelName(log_level_name))
 
 
 def main():
@@ -145,15 +144,17 @@ def main():
             # in k8s everything runs as part of a Dep (restart policies are in place), so there's nothing to fix
             self_sup.docker_container_healer()
 
+        log.debug(f'Operational status checks: {self_sup.operational_status}')
+
         statuses = [s[0] for s in self_sup.operational_status]
         status_notes = [s[-1] for s in self_sup.operational_status]
 
         if utils.status_degraded in statuses:
             utils.set_operational_status(utils.status_degraded, status_notes)
         elif all([x == utils.status_operational for x in statuses]) or not self_sup.operational_status:
-            utils.set_operational_status(utils.status_operational)
+            utils.set_operational_status(utils.status_operational, status_notes)
         else:
-            utils.set_operational_status(utils.status_unknown)
+            utils.set_operational_status(utils.status_unknown, status_notes)
 
         time.sleep(15)
 
@@ -171,7 +172,7 @@ if __name__ == '__main__':
         args = agent_parser.parse_args()
         log_level_name = args.log_level
     except BaseException as e:
-        logging.error(f'Error while parsing argument: {e}')
+        log.error(f'Error while parsing argument: {e}')
     configure_root_logger(log_level_name)
 
     main()
