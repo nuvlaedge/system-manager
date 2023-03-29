@@ -3,19 +3,18 @@
 
 """ Contains the supervising class for all NuvlaEdge Engine components """
 
-import os
 import json
+import logging
+import os
 import socket
-
-import docker
-import OpenSSL
-
 from datetime import datetime
 from threading import Timer
 from typing import Union
 
+import docker
+import OpenSSL
+
 from system_manager.common import utils
-from system_manager.common.logging import logging
 from system_manager.common.ContainerRuntime import Containers
 
 
@@ -50,6 +49,7 @@ class Supervise(Containers):
         super().__init__(self.log)
 
         self.on_stop_docker_image = self.container_runtime.infer_on_stop_docker_image()
+        self.data_gateway_enabled = os.getenv('NUVLAEDGE_DATA_GATEWAY_ENABLED', 'true').lower() == 'true'
         self.data_gateway_image = os.getenv('NUVLAEDGE_DATA_GATEWAY_IMAGE',
                                             os.getenv('NUVLABOX_DATA_GATEWAY_IMAGE',
                                                       'eclipse-mosquitto:2.0.15-openssl'))
@@ -317,8 +317,6 @@ class Supervise(Containers):
                 # double check DG still has the right network
                 self.check_dg_network(data_gateway_network)
 
-        return
-
     def manage_docker_data_gateway_connect_to_network(self, containers_to_connect: list,
                                                       agent_container_id: str) -> None:
         """
@@ -359,6 +357,9 @@ class Supervise(Containers):
 
         :return:
         """
+
+        if not self.data_gateway_enabled:
+            return
 
         # ## 1: if the DG network already exists, then chances are that the DG has already been deployed
         dg_networks = self.find_docker_network([utils.nuvlaedge_shared_net])
