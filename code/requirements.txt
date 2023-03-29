@@ -1,4 +1,2 @@
 docker
-Flask
-gunicorn
 kubernetes

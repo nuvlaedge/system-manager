@@ -5,9 +5,6 @@ services:
     build: .
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./code/templates:/opt/nuvlaedge/templates
-      - ./code/static:/opt/nuvlaedge/static
-      - ./code/test/.nuvlabox-status:/srv/nuvlaedge/shared/.nuvlabox-status
     labels:
       - nuvlaedge.component=True
       - nuvlaedge.deployment=production
@@ -17,11 +14,3 @@ services:
       - SKIP_MINIMUM_REQUIREMENTS=False
       - DATA_GATEWAY_NETWORK_ENCRYPTION=True
     restart: on-failure
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3636"]
-      interval: 30s
-      timeout: 10s
-      retries: 4
-      start_period: 10s
-    ports:
-      - 127.0.0.1:3636:3636
