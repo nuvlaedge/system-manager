@@ -49,6 +49,7 @@ class Supervise(Containers):
         super().__init__(self.log)
 
         self.on_stop_docker_image = self.container_runtime.infer_on_stop_docker_image()
+        self.data_gateway_enabled = os.getenv('NUVLAEDGE_DATA_GATEWAY_ENABLED', 'true').lower() == 'true'
         self.data_gateway_image = os.getenv('NUVLAEDGE_DATA_GATEWAY_IMAGE',
                                             os.getenv('NUVLABOX_DATA_GATEWAY_IMAGE',
                                                       'eclipse-mosquitto:2.0.15-openssl'))
@@ -356,6 +357,9 @@ class Supervise(Containers):
 
         :return:
         """
+
+        if not self.data_gateway_enabled:
+            return
 
         # ## 1: if the DG network already exists, then chances are that the DG has already been deployed
         dg_networks = self.find_docker_network([utils.nuvlaedge_shared_net])
