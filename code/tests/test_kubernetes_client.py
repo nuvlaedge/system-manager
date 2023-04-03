@@ -194,9 +194,9 @@ class KubernetesTestCase(unittest.TestCase):
                         'Got the wrong error message when there is a pod name mismatch')
 
         # otherwise, get the container back
-        pods.items = [fake.mock_kubernetes_pod('agent')]
-        self.obj.client.list_namespaced_pod.return_value = pods
-        self.assertEqual(self.obj.find_nuvlaedge_agent_container()[0].name, 'agent',
+        pods.items = [fake.mock_kubernetes_pod('nuvlaedge-agent')]
+
+        self.assertEqual(self.obj.find_nuvlaedge_agent_container()[0].name, 'nuvlaedge-agent',
                          'Failed to find agent container')
         self.assertIsNone(self.obj.find_nuvlaedge_agent_container()[1],
                           'Got an error message on success')
