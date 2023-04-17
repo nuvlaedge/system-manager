@@ -1,0 +1,6 @@
+[run]
+relative_files = True
+include =
+    system_manager/*
+    tests/*
+branch = True
