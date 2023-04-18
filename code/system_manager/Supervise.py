@@ -391,15 +391,7 @@ class Supervise(Containers):
         except BreakDGManagementCycle:
             return
 
-        agent_query_url = f'http://{self.container_runtime.agent_dns}/api/healthcheck'
-        r, err = self.container_runtime.test_agent_connection(agent_query_url)
-        if not r and err:
-            self.operational_status.append((utils.status_degraded, err))
-            return
-
-        if r.status_code == 404:
-            self.agent_dg_failed_connection += 1
-
+        # TODO: unreachable code, try to find another way to detect agent<->dg connection issues (if needed)
         if self.agent_dg_failed_connection > 3:
             # do something after 3 reports
             self.restart_data_gateway()

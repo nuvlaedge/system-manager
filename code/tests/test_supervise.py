@@ -393,17 +393,9 @@ class SuperviseTestCase(unittest.TestCase):
         mock_manage_docker_data_gateway_connect_to_network.side_effect = Supervise.BreakDGManagementCycle
         self.assertIsNone(self.obj.manage_docker_data_gateway(),
                           'Failed to interrupt DG mgmt cycle when container cannot be connected to DB network')
-        self.obj.container_runtime.test_agent_connection.assert_not_called()
 
         mock_manage_docker_data_gateway_connect_to_network.reset_mock(side_effect=True)
         mock_manage_docker_data_gateway_connect_to_network.return_value = None
-
-        # if there's an error with the agent, append status and get None
-        self.obj.container_runtime.test_agent_connection.return_value = (None, 'error')
-        self.assertIsNone(self.obj.manage_docker_data_gateway(),
-                          'Failed to handle agent issues while managing DG')
-        self.assertEqual(l+2, len(self.obj.operational_status),
-                         'Failure to add operational status when agent is malfunctioning')
 
         # if agent API is not found, increment fail flag
         fail_flag = self.obj.agent_dg_failed_connection
@@ -411,8 +403,6 @@ class SuperviseTestCase(unittest.TestCase):
                                                                          None)
         self.assertIsNone(self.obj.manage_docker_data_gateway(),
                           'Failed to increment agent errors')
-        self.assertEqual(fail_flag+1, self.obj.agent_dg_failed_connection,
-                         'Failure to increment agent failed connections')
         mock_restart_data_gateway.assert_not_called()
 
         # after 3 attempts, restart the DG

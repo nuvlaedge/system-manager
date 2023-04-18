@@ -156,19 +156,6 @@ class ContainerRuntime(ABC):
         """
         pass
 
-    def test_agent_connection(self, url):
-        """ Check if the Agent API is alive
-        """
-        try:
-            r = requests.get(url)
-        except requests.exceptions.ConnectionError as e:
-            msg = f'Agent API connection error: {str(e)}'
-            self.logging.warning(msg)
-
-            return None, msg
-
-        return r, None
-
     @abstractmethod
     def list_all_containers_in_this_node(self):
         """ List all the containers running in this node
@@ -607,20 +594,23 @@ class Docker(ContainerRuntime):
         except docker.errors.NotFound:
             self.logging.exception(f"Container {self.credentials_manager_component} is not running. Nothing to do...")
 
-        return
-
     def find_nuvlaedge_agent_container(self):
-        agent_api_id_url = f'http://{self.agent_dns}/api/agent-container-id'
         try:
-            agent_container_id = requests.get(agent_api_id_url)
-        except requests.exceptions.ConnectionError:
-            self.logging.warning('Agent API is not ready yet. Trying again later')
+            current_container = self.get_current_container()
+            project_name = self.get_compose_project_name_from_labels(current_container.labels)
+        except Exception as e:
+            self.logging.warning(f'Failed to get current container. Cannot find agent container. {e}')
+            return None, 'Cannot find Agent container'
 
-            return None, 'Agent API is not available'
-
-        agent_container_id.raise_for_status()
-
-        return self.client.containers.get(agent_container_id.json()), None
+        filters = {'label': ['nuvlaedge.component=True',
+                             'com.docker.compose.service=agent',
+                             f'com.docker.compose.project={project_name}']}
+        try:
+            return self.client.containers.list(filters=filters)[0], None
+        except IndexError:
+            message = 'Agent container not found'
+            self.logging.warning(message)
+            return None, message
 
     def list_all_containers_in_this_node(self):
         return self.client.containers.list(all=True)
