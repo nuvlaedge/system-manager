@@ -211,14 +211,14 @@ class DockerTestCase(unittest.TestCase):
         self.obj.client.containers.run.return_value = None
         self.assertIsNone(self.obj.launch_nuvlaedge_on_stop('image'),
                           'Failed to launch on-stop without project name')
-        self.assertEqual(mock_gethostname.call_count, 2,
+        self.assertEqual(mock_gethostname.call_count, 1,
                          'Failed to catch container NotFound exception')
         self.obj.client.containers.run.assert_called_once()
 
         self.obj.client.containers.get.reset_mock(side_effect=True)
         self.assertIsNone(self.obj.launch_nuvlaedge_on_stop('image'),
                           'Failed to launch on-stop container')
-        self.assertEqual(mock_gethostname.call_count, 3,
+        self.assertEqual(mock_gethostname.call_count, 2,
                          'Failed to find "self" container')
 
     @mock.patch.object(ContainerRuntime.Docker, 'get_node_info')

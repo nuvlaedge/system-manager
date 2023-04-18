@@ -590,9 +590,9 @@ class SuperviseTestCase(unittest.TestCase):
         self.assertEqual(len(self.obj.operational_status), l+2,
                          'Failed to add operational status when project name cannot be inferred from container name')
 
-        out_container.name = 'project_good-name'
+        out_container.name = 'project-good-name'
         self.obj.container_runtime.client.containers.get.return_value = out_container
-        self.assertEqual(self.obj.get_project_name(), out_container.name.split('_')[0],
+        self.assertEqual(self.obj.get_project_name(), out_container.name.split('-')[0],
                          'Failed to get project name from container name')
 
     def test_fix_network_connectivity(self):
