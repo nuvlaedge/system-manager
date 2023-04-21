@@ -1,4 +1,4 @@
-name: "Agent Validation"
+name: "System Manager Validation"
 
 on:
   push:
