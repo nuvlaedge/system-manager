@@ -490,8 +490,8 @@ class Docker(ContainerRuntime):
         return self.get_current_container().id
 
     @staticmethod
-    def get_compose_project_name_from_labels(labels):
-        return labels.get('com.docker.compose.project', 'nuvlaedge')
+    def get_compose_project_name_from_labels(labels, default='nuvlaedge'):
+        return labels.get('com.docker.compose.project', default)
 
     def launch_nuvlaedge_on_stop(self, on_stop_docker_image):
         error_msg = 'Cannot launch NuvlaEdge On-Stop graceful shutdown. ' \
