@@ -6,7 +6,6 @@
 import json
 import logging
 import os
-import socket
 from datetime import datetime
 from threading import Timer
 from typing import Union
@@ -392,15 +391,7 @@ class Supervise(Containers):
         except BreakDGManagementCycle:
             return
 
-        agent_query_url = f'http://{self.container_runtime.agent_dns}/api/healthcheck'
-        r, err = self.container_runtime.test_agent_connection(agent_query_url)
-        if not r and err:
-            self.operational_status.append((utils.status_degraded, err))
-            return
-
-        if r.status_code == 404:
-            self.agent_dg_failed_connection += 1
-
+        # TODO: unreachable code, try to find another way to detect agent<->dg connection issues (if needed)
         if self.agent_dg_failed_connection > 3:
             # do something after 3 reports
             self.restart_data_gateway()
@@ -559,24 +550,26 @@ class Supervise(Containers):
     def get_project_name(self) -> str:
         """"""
         try:
-            myself = self.container_runtime.client.containers.get(socket.gethostname())
+            container_id = self.container_runtime.get_current_container_id()
+            myself = self.container_runtime.client.containers.get(container_id)
         except docker.errors.NotFound:
-            err = f'Cannot find this container by hostname: {socket.gethostname()}. Cannot proceed'
+            err = f'Cannot find the current container. Cannot proceed'
             self.log.error(err)
             self.operational_status.append((utils.status_degraded, 'System Manager container lookup error'))
-            raise Exception(err)
+            raise RuntimeError(err)
 
         try:
             project_name = myself.labels['com.docker.compose.project']
         except KeyError:
             self.log.warning(f'Cannot infer Docker Compose project name from the labels in {myself.name}.'
                              f'Trying to infer from container name')
-            project_name = myself.name.split('_')[0] if len(myself.name.split('_')) > 1 else None
-            if not project_name:
+            try:
+                project_name = myself.name.split('-')[-3]
+            except (IndexError, AttributeError):
                 msg = 'Impossible to infer Docker Compose project name!'
                 self.log.error(msg)
                 self.operational_status.append((utils.status_degraded, msg))
-                raise Exception(msg)
+                raise RuntimeError(msg)
 
         return project_name
 
@@ -690,8 +683,6 @@ class Supervise(Containers):
                                                                              self.restart_container,
                                                                              (container.name, container.id))
                 self.nuvlaedge_containers_restarting[container.name].start()
-
-        return
 
     def docker_container_healer(self):
         """

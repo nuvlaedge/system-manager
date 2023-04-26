@@ -211,14 +211,14 @@ class DockerTestCase(unittest.TestCase):
         self.obj.client.containers.run.return_value = None
         self.assertIsNone(self.obj.launch_nuvlaedge_on_stop('image'),
                           'Failed to launch on-stop without project name')
-        self.assertEqual(mock_gethostname.call_count, 2,
+        self.assertEqual(mock_gethostname.call_count, 1,
                          'Failed to catch container NotFound exception')
         self.obj.client.containers.run.assert_called_once()
 
         self.obj.client.containers.get.reset_mock(side_effect=True)
         self.assertIsNone(self.obj.launch_nuvlaedge_on_stop('image'),
                           'Failed to launch on-stop container')
-        self.assertEqual(mock_gethostname.call_count, 3,
+        self.assertEqual(mock_gethostname.call_count, 2,
                          'Failed to find "self" container')
 
     @mock.patch.object(ContainerRuntime.Docker, 'get_node_info')
@@ -335,23 +335,20 @@ class DockerTestCase(unittest.TestCase):
         self.obj.client.api.restart.side_effect = docker.errors.APIError('', requests.Response())
         self.assertRaises(docker.errors.APIError, self.obj.restart_credentials_manager)
 
-    @mock.patch('requests.get')
-    def test_find_nuvlaedge_agent_container(self, mock_get):
-        # if API error, get None
-        mock_get.side_effect = requests.exceptions.ConnectionError
-        self.assertEqual(self.obj.find_nuvlaedge_agent_container(), (None, 'Agent API is not available'),
-                         'Tried to find agent even though its API is down')
-
-        response = mock.MagicMock()
-        response.raise_for_status.return_value = None
-        mock_get.reset_mock(side_effect=True)
-        mock_get.return_value = response
-        self.obj.client.containers.get.return_value = 'foo'
+    @mock.patch.object(ContainerRuntime.Docker, 'get_current_container')
+    def test_find_nuvlaedge_agent_container(self, mock_current_container):
+        labels = mock.MagicMock()
+        labels.labels = {'com.docker.compose.project': 'nuvlaedge'}
+        mock_current_container.return_value = labels
+        self.obj.client.containers.list.return_value = ['foo']
         self.assertEqual(self.obj.find_nuvlaedge_agent_container(), ('foo', None),
                          'Failed to find Agent container')
 
-        response.raise_for_status.side_effect = TimeoutError
-        self.assertRaises(TimeoutError, self.obj.find_nuvlaedge_agent_container)
+        self.obj.client.containers.list.return_value = []
+        self.assertEqual(self.obj.find_nuvlaedge_agent_container(), (None, 'Agent container not found'))
+
+        mock_current_container.return_value = None
+        self.assertEqual(self.obj.find_nuvlaedge_agent_container(), (None, 'Cannot find Agent container'))
 
     def test_list_all_containers_in_this_node(self):
         # simple lookup

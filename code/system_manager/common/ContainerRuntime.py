@@ -62,6 +62,15 @@ class ContainerRuntime(ABC):
         pass
 
     @abstractmethod
+    def get_current_container_id(self) -> str:
+        """
+        Get the container id of the current container
+
+        :return: current container id
+        """
+        pass
+
+    @abstractmethod
     def get_node_info(self):
         """ Get high level info about the hosting node
         """
@@ -146,19 +155,6 @@ class ContainerRuntime(ABC):
         """ Finds and returns the NuvlaEdge component
         """
         pass
-
-    def test_agent_connection(self, url):
-        """ Check if the Agent API is alive
-        """
-        try:
-            r = requests.get(url)
-        except requests.exceptions.ConnectionError as e:
-            msg = f'Agent API connection error: {str(e)}'
-            self.logging.warning(msg)
-
-            return None, msg
-
-        return r, None
 
     @abstractmethod
     def list_all_containers_in_this_node(self):
@@ -335,6 +331,10 @@ class Kubernetes(ContainerRuntime):
     def get_version(self):
         return self.get_node_info().status.node_info.kubelet_version
 
+    def get_current_container_id(self) -> str:
+        # TODO
+        return ''
+
 
 class Docker(ContainerRuntime):
     """
@@ -451,6 +451,48 @@ class Docker(ContainerRuntime):
 
         return None
 
+    def _get_container_id_from_cgroup(self):
+        try:
+            with open('/proc/self/cgroup', 'r') as f:
+                return f.read().split('/')[-1].strip()
+        except Exception as e:
+            self.logging.debug(f'Failed to get container id from cgroup: {e}')
+
+    def _get_container_id_from_cpuset(self):
+        try:
+            with open('/proc/1/cpuset', 'r') as f:
+                return f.read().split('/')[-1].strip()
+        except Exception as e:
+            self.logging.debug(f'Failed to get container id from cpuset: {e}')
+
+    def _get_container_id_from_hostname(self):
+        try:
+            return socket.gethostname().strip()
+        except Exception as e:
+            self.logging.debug(f'Failed to get container id from hostname: {e}')
+
+    def get_current_container(self):
+        get_id_functions = [self._get_container_id_from_hostname,
+                            self._get_container_id_from_cpuset,
+                            self._get_container_id_from_cgroup]
+        for get_id_function in get_id_functions:
+            container_id = get_id_function()
+            if container_id:
+                try:
+                    return self.client.containers.get(container_id)
+                except Exception as e:
+                    self.logging.debug(f'Failed to get container with id "{container_id}": {e}')
+            else:
+                self.logging.debug(f'No container id found for "{get_id_function.__name__}"')
+        raise RuntimeError('Failed to get current container')
+
+    def get_current_container_id(self) -> str:
+        return self.get_current_container().id
+
+    @staticmethod
+    def get_compose_project_name_from_labels(labels, default='nuvlaedge'):
+        return labels.get('com.docker.compose.project', default)
+
     def launch_nuvlaedge_on_stop(self, on_stop_docker_image):
         error_msg = 'Cannot launch NuvlaEdge On-Stop graceful shutdown. ' \
                     'If decommissioning, container resources might be left behind'
@@ -461,18 +503,18 @@ class Docker(ContainerRuntime):
                 self.logging.warning(f'{error_msg}: Docker image not found for NuvlaEdge On-Stop service')
                 return
 
+        myself_labels = {}
         try:
-            myself = self.client.containers.get(socket.gethostname())
-            myself_labels = myself.labels
-        except docker.errors.NotFound:
-            self.logging.warning(f'Cannot find this container by hostname: {socket.gethostname()}')
-            myself_labels = {}
+            myself_labels = self.get_current_container().labels
+        except Exception as e:
+            message = f'Failed to find the current container by id: {e}'
+            self.logging.warning(message)
 
-        project_name = myself_labels.get('com.docker.compose.project')
+        project_name = self.get_compose_project_name_from_labels(myself_labels)
 
         random_identifier = ''.join(random.choices(string.ascii_uppercase, k=5))
         now = datetime.strftime(datetime.utcnow(), '%d-%m-%Y_%H%M%S')
-        on_stop_container_name = f"nuvlaedge-on-stop-{random_identifier}-{now}"
+        on_stop_container_name = f"{project_name}-on-stop-{random_identifier}-{now}"
 
         label = {
             "nuvlaedge.on-stop": "True"
@@ -552,20 +594,23 @@ class Docker(ContainerRuntime):
         except docker.errors.NotFound:
             self.logging.exception(f"Container {self.credentials_manager_component} is not running. Nothing to do...")
 
-        return
-
     def find_nuvlaedge_agent_container(self):
-        agent_api_id_url = f'http://{self.agent_dns}/api/agent-container-id'
         try:
-            agent_container_id = requests.get(agent_api_id_url)
-        except requests.exceptions.ConnectionError:
-            self.logging.warning('Agent API is not ready yet. Trying again later')
+            current_container = self.get_current_container()
+            project_name = self.get_compose_project_name_from_labels(current_container.labels)
+        except Exception as e:
+            self.logging.warning(f'Failed to get current container. Cannot find agent container. {e}')
+            return None, 'Cannot find Agent container'
 
-            return None, 'Agent API is not available'
-
-        agent_container_id.raise_for_status()
-
-        return self.client.containers.get(agent_container_id.json()), None
+        filters = {'label': ['nuvlaedge.component=True',
+                             'com.docker.compose.service=agent',
+                             f'com.docker.compose.project={project_name}']}
+        try:
+            return self.client.containers.list(filters=filters)[0], None
+        except IndexError:
+            message = 'Agent container not found'
+            self.logging.warning(message)
+            return None, message
 
     def list_all_containers_in_this_node(self):
         return self.client.containers.list(all=True)
