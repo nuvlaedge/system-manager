@@ -23,7 +23,7 @@ __copyright__ = "Copyright (C) 2021 SixSq"
 __email__ = "support@sixsq.com"
 
 log = logging.getLogger(__name__)
-self_sup = Supervise()
+supervisor = Supervise()
 
 
 def log_threads_stackstraces():
@@ -56,7 +56,7 @@ class GracefulShutdown:
 
     def exit_gracefully(self, signum, frame):
         log.info(f'Starting on-stop graceful shutdown of the NuvlaEdge...')
-        self_sup.container_runtime.launch_nuvlaedge_on_stop(self_sup.on_stop_docker_image)
+        supervisor.container_runtime.launch_nuvlaedge_on_stop(supervisor.on_stop_docker_image)
         sys.exit(0)
 
 
@@ -123,35 +123,35 @@ def main():
     software_requirements = MinReq.SoftwareRequirements()
 
     while True:
-        self_sup.operational_status = []
-        requirements_check(software_requirements, system_requirements, self_sup.operational_status)
+        supervisor.operational_status = []
+        requirements_check(software_requirements, system_requirements, supervisor.operational_status)
 
         # refresh this node's status, to capture any changes in the COE/Cluster configuration
-        self_sup.classify_this_node()
+        supervisor.classify_this_node()
 
         # certificate rotation check
-        if self_sup.is_cert_rotation_needed():
+        if supervisor.is_cert_rotation_needed():
             log.info("Rotating NuvlaEdge certificates...")
-            self_sup.request_rotate_certificates()
+            supervisor.request_rotate_certificates()
 
-        if self_sup.container_runtime.orchestrator != 'kubernetes':
+        if supervisor.container_runtime.orchestrator != 'kubernetes':
             # in k8s there are no switched from uncluster - cluster, so there's no need for connectivity check
-            self_sup.check_nuvlaedge_docker_connectivity()
+            supervisor.check_nuvlaedge_docker_connectivity()
 
             # the Data Gateway comes out of the box for k8s installations
-            self_sup.manage_docker_data_gateway()
+            supervisor.manage_docker_data_gateway()
 
             # in k8s everything runs as part of a Dep (restart policies are in place), so there's nothing to fix
-            self_sup.docker_container_healer()
+            supervisor.docker_container_healer()
 
-        log.debug(f'Operational status checks: {self_sup.operational_status}')
+        log.debug(f'Operational status checks: {supervisor.operational_status}')
 
-        statuses = [s[0] for s in self_sup.operational_status]
-        status_notes = [s[-1] for s in self_sup.operational_status]
+        statuses = [s[0] for s in supervisor.operational_status]
+        status_notes = [s[-1] for s in supervisor.operational_status]
 
         if utils.status_degraded in statuses:
             utils.set_operational_status(utils.status_degraded, status_notes)
-        elif all([x == utils.status_operational for x in statuses]) or not self_sup.operational_status:
+        elif all([x == utils.status_operational for x in statuses]) or not supervisor.operational_status:
             utils.set_operational_status(utils.status_operational, status_notes)
         else:
             utils.set_operational_status(utils.status_unknown, status_notes)
