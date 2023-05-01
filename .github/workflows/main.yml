@@ -15,6 +15,11 @@ on:
       - 'code/tests/'
       - '.github/workflows/main.yml'
   pull_request:
+    paths:
+      - 'code/system_manager/'
+      - 'code/tests/'
+      - '.github/workflows/main.yml'
+      - 'Dockerfile'
   workflow_dispatch:
 
 jobs:
@@ -25,11 +30,11 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
 
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.8'
           cache: 'pip'
@@ -91,7 +96,8 @@ jobs:
           tags: >
             nuvladev/${{ github.event.repository.name }}:${{ github.head_ref || github.ref_name }},
             nuvladev/${{ github.event.repository.name }}:latest
-          push: ${{ github.event_name != 'pull_request' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   notify:
     if: always()
