@@ -1,3 +1,9 @@
+# :information_source: This component has moved :arrow_right:
+
+It is now part of :point_right: [nuvlaedge/nuvlaedge](https://github.com/nuvlaedge/nuvlaedge) 👈.
+
+---
+
 # system-manager
 
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg?style=for-the-badge)](https://github.com/nuvlaedge/system-manager/graphs/commit-activity)
